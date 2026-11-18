@@ -1,0 +1,621 @@
+// ContaHub ONG — schema bazei de date (PostgreSQL)
+// Copiați acest fișier integral în https://dbdiagram.io/d
+
+Project ContaHub_ONG {
+  database_type: 'PostgreSQL'
+  Note: 'Sistem web de contabilitate pentru ONG-uri (înlocuitor 1C), cu asistență AI'
+}
+
+// ───────────────────────── ENUM-uri ─────────────────────────
+
+Enum user_role {
+  admin
+  chief_accountant
+  accountant
+  project_manager
+  auditor
+}
+
+Enum document_type {
+  invoice
+  e_invoice
+  payment_order
+  bank_statement
+  contract
+  act
+  receipt
+  individual_payment
+  other
+}
+
+Enum document_status {
+  new
+  ai_processed
+  to_review
+  validated
+  rejected
+}
+
+Enum contract_type {
+  cim [note: 'contract individual de muncă']
+  civil [note: 'contract civil / prestări servicii']
+}
+
+Enum payment_direction {
+  incoming
+  outgoing
+}
+
+Enum update_status {
+  pending
+  approved
+  rejected
+}
+
+Enum import_status {
+  pending
+  running
+  done
+  failed
+}
+
+Enum account_kind {
+  active
+  passive
+  active_passive
+}
+
+Enum subconto_type {
+  counterparty
+  contract
+  person
+  item
+  fixed_asset
+  bank_account
+  grant
+  budget_line
+  financing_source
+}
+
+// ───────────────────── Utilizatori și organizații ─────────────────────
+
+Table organizations {
+  id uuid [pk]
+  name varchar [not null]
+  idno varchar(13) [unique, not null, note: 'cod fiscal']
+  legal_form varchar [note: 'AO, Fundație, SRL...']
+  is_ngo boolean [default: true]
+  drive_root_folder_id varchar [note: 'folderul rădăcină pe Google Drive']
+  base_currency char(3) [default: 'MDL']
+  ngo_category char(1) [note: 'ONG17: A asociație, B fundație, C filantropică, D culte, E partide, F presă, G alte']
+  cuiio varchar [note: 'cod statistic — 5-CON']
+  cfoj varchar [note: 'forma organizatorico-juridică — 5-CON']
+  cfp varchar [note: 'forma de proprietate — 5-CON']
+  cuatm varchar [note: 'codul localității — antet IPC21']
+  caem varchar [note: 'codul activității principale']
+  cnas_code varchar [note: 'cod CNAS al plătitorului']
+  sfs_office varchar [note: 'subdiviziunea SFS']
+  director_name varchar
+  chief_accountant_name varchar
+  created_at timestamp [default: `now()`]
+}
+
+Table users {
+  id uuid [pk]
+  email varchar [unique, not null]
+  full_name varchar [not null]
+  password_hash varchar [not null, note: 'Argon2']
+  totp_secret_enc varchar [note: '2FA, criptat']
+  is_active boolean [default: true]
+  last_login_at timestamp
+  created_at timestamp [default: `now()`]
+}
+
+Table organization_members {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  user_id uuid [not null, ref: > users.id]
+  role user_role [not null]
+  indexes {
+    (organization_id, user_id) [unique]
+  }
+}
+
+Table audit_log {
+  id bigserial [pk]
+  organization_id uuid [ref: > organizations.id]
+  user_id uuid [ref: > users.id]
+  action varchar [not null, note: 'create / update / delete / validate / export']
+  entity varchar [not null, note: 'numele tabelei']
+  entity_id uuid
+  old_values jsonb
+  new_values jsonb
+  ip_address inet
+  created_at timestamp [default: `now()`]
+}
+
+// ───────────────────── Contrapartide ─────────────────────
+
+Table counterparties {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null]
+  idno varchar(13)
+  vat_code varchar
+  iban_enc varchar [note: 'IBAN criptat']
+  bank_code varchar
+  address varchar
+  default_budget_line_id uuid [ref: > budget_lines.id, note: 'propunere AI']
+  onec_guid uuid [note: 'GUID în 1C']
+  indexes {
+    (organization_id, idno) [unique]
+  }
+}
+
+// ───────────────────── Granturi și bugete ─────────────────────
+
+Table donors {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null, note: 'ex. Fundația Soros Moldova']
+  country varchar
+}
+
+Table grants {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  code varchar [not null]
+  title varchar [not null]
+  funding_type varchar [note: 'grant, donație, cotizații, percentage_designation (desemnare procentuală — ONG17 anexa 1D)...']
+  designation_year int [note: 'anul desemnării procentuale']
+  currency char(3) [not null]
+  total_amount numeric(15,2) [not null, note: 'СуммаПроекта']
+  account_id uuid [ref: > accounts.id, note: 'СчетПроекта']
+  accrue_funding_debt boolean [default: false, note: 'НачислятьЗадолженностьПоФинансированию']
+  is_closed boolean [default: false]
+  start_date date [not null]
+  end_date date [not null]
+  drive_folder_id varchar
+  report_template_id uuid [ref: > report_templates.id]
+}
+
+Table grant_donors {
+  id uuid [pk]
+  grant_id uuid [not null, ref: > grants.id]
+  donor_id uuid [not null, ref: > donors.id]
+  share_percent numeric(5,2) [note: 'ПроцентУчастия — cofinanțare']
+  amount numeric(15,2)
+  indexes {
+    (grant_id, donor_id) [unique]
+  }
+}
+
+Table cost_items {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null, note: 'СтатьиЗатрат']
+  con5_article varchar [note: 'rândul din 5-CON, ex. 071, 130 (Статьи5CON)']
+  designation_category varchar [note: 'ONG17 anexa 1D: public_utility / social_charity / administrative']
+}
+
+Table organization_stats {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  period_end date [not null]
+  members_count int [note: '5-CON rândul 300']
+  volunteers_count int [note: '5-CON rândul 320']
+  indexes {
+    (organization_id, period_end) [unique]
+  }
+}
+
+Table budget_lines {
+  id uuid [pk]
+  grant_id uuid [not null, ref: > grants.id]
+  parent_id uuid [ref: > budget_lines.id, note: 'linii ierarhice: 1, 1.1, 1.2']
+  code varchar [not null]
+  name varchar [not null, note: 'ex. Salarii, Transport, Echipament']
+  cost_item_id uuid [ref: > cost_items.id, note: 'СтатьяЗатрат — leagă linia de 5-CON']
+  planned_amount numeric(15,2) [not null]
+  indexes {
+    (grant_id, code) [unique]
+  }
+}
+
+// ───────────────────── Documente și AI ─────────────────────
+
+Table documents {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  type document_type
+  status document_status [not null, default: 'new']
+  is_posted boolean [default: false, note: 'înregistrat (проведён)']
+  deletion_mark boolean [default: false, note: 'marcat pentru ștergere']
+  version int [default: 1, note: 'blocare optimistă la lucru simultan']
+  drive_file_id varchar [note: 'scanul original pe Drive (null pentru documente create manual)']
+  file_name varchar
+  mime_type varchar
+  sha256 char(64) [note: 'detectare dubluri scanuri']
+  counterparty_id uuid [ref: > counterparties.id]
+  doc_number varchar
+  doc_date date
+  total_amount numeric(15,2)
+  currency char(3)
+  uploaded_by uuid [ref: > users.id]
+  validated_by uuid [ref: > users.id]
+  validated_at timestamp
+  created_at timestamp [default: `now()`]
+  indexes {
+    (organization_id, sha256) [unique]
+    (organization_id, status)
+  }
+}
+
+Table document_extractions {
+  id uuid [pk]
+  document_id uuid [not null, ref: > documents.id]
+  engine varchar [note: 'azure-docint / llm model']
+  raw_text text
+  fields jsonb [note: '{camp: {valoare, incredere}}']
+  min_confidence numeric(4,3)
+  created_at timestamp [default: `now()`]
+}
+
+Table invoices {
+  id uuid [pk]
+  document_id uuid [unique, not null, ref: - documents.id]
+  series varchar
+  number varchar [not null]
+  issue_date date [not null]
+  amount_without_vat numeric(15,2)
+  vat_amount numeric(15,2)
+  total_amount numeric(15,2) [not null]
+  e_invoice_id varchar [note: 'ID e-Factura SFS, dacă există']
+}
+
+Table invoice_lines {
+  id uuid [pk]
+  invoice_id uuid [not null, ref: > invoices.id]
+  description varchar [not null]
+  quantity numeric(12,3)
+  unit varchar
+  unit_price numeric(15,4)
+  vat_rate numeric(5,2)
+  amount numeric(15,2) [not null]
+}
+
+Table payment_orders {
+  id uuid [pk]
+  document_id uuid [unique, not null, ref: - documents.id]
+  direction payment_direction [not null]
+  number varchar [not null]
+  payment_date date [not null]
+  amount numeric(15,2) [not null]
+  currency char(3) [not null]
+  exchange_rate numeric(12,4) [note: 'curs BNM la dată']
+  purpose varchar [note: 'destinația plății']
+  invoice_id uuid [ref: > invoices.id, note: 'factura achitată']
+}
+
+Table allocations {
+  id uuid [pk]
+  document_id uuid [not null, ref: > documents.id]
+  budget_line_id uuid [not null, ref: > budget_lines.id]
+  amount numeric(15,2) [not null, note: 'în valuta grantului']
+  amount_mdl numeric(15,2)
+  note varchar
+  suggested_by_ai boolean [default: false]
+}
+
+// ───────────────────── Personal și salarizare ─────────────────────
+
+Table persons {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  full_name varchar [not null]
+  idnp_enc varchar [not null, note: 'IDNP criptat']
+  birth_date date
+  dependents_count int [default: 0, note: 'persoane întreținute']
+  cpas varchar [note: 'cod personal de asigurare socială — IPC21 Tabelul 2']
+}
+
+Table contracts {
+  id uuid [pk]
+  person_id uuid [not null, ref: > persons.id]
+  grant_id uuid [ref: > grants.id]
+  type contract_type [not null]
+  is_main_job boolean [default: false, note: 'scutirea doar la locul de bază, doar CIM']
+  department_id uuid [ref: > departments.id, note: 'subdiviziunea — anexa IPC21']
+  special_function_code varchar [note: 'codul funcției cu drept la pensie în condiții speciale']
+  number varchar
+  start_date date [not null]
+  end_date date
+  gross_amount numeric(15,2) [not null, note: 'salariu lunar sau onorariu']
+  document_id uuid [ref: > documents.id, note: 'contractul scanat']
+}
+
+Table payroll_periods {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  year int [not null]
+  month int [not null]
+  is_closed boolean [default: false]
+  indexes {
+    (organization_id, year, month) [unique]
+  }
+}
+
+Table payroll_entries {
+  id uuid [pk]
+  period_id uuid [not null, ref: > payroll_periods.id]
+  contract_id uuid [not null, ref: > contracts.id, note: 'calcul PE CONTRACT, nu pe persoană']
+  income_code varchar [not null, note: 'cod sursă venit IPC21: SAL (CIM), PL / PLs (contract civil), DON pf, FOL...']
+  period_start date [note: 'perioada de muncă — IPC21 Tabelul 2 c5']
+  period_end date [note: 'IPC21 Tabelul 2 c6']
+  insured_category varchar [note: 'categoria persoanei asigurate — Tabelul 2 c7']
+  cnas_tariff numeric(5,2) [note: '24 / 29 / 6 ... — Tabelul 2 c8']
+  cnas_base numeric(15,2) [note: 'baza contribuției — Tabelul 2 c9']
+  sick_benefit numeric(15,2) [default: 0, note: 'indemnizație incapacitate — Tabelul 2 c10']
+  gross numeric(15,2) [not null]
+  personal_exemption numeric(15,2) [default: 0, note: '0 pentru contract civil']
+  dependents_exemption numeric(15,2) [default: 0]
+  taxable_income numeric(15,2)
+  income_tax numeric(15,2)
+  cnam_employee numeric(15,2)
+  cnas_employer numeric(15,2)
+  net numeric(15,2)
+  budget_line_id uuid [ref: > budget_lines.id]
+  calc_details jsonb [note: 'ce cote (tax_rates.id) s-au folosit']
+}
+
+Table individual_payments {
+  id uuid [pk]
+  document_id uuid [unique, not null, ref: - documents.id, note: '„Plată către persoană fizică”']
+  person_id uuid [not null, ref: > persons.id]
+  payment_kind varchar [not null, note: 'rent / agri_land_rent / services / donation / interest / royalty']
+  income_code varchar [not null, note: 'cod IPC21: FOL, PLs, PL, DON pf, DOB, ROY...']
+  accrual_date date [not null]
+  payment_date date
+  gross numeric(15,2) [not null]
+  tax_rate_id uuid [ref: > tax_rates.id, note: 'cota de reținere valabilă la dată']
+  income_tax numeric(15,2) [default: 0]
+  net numeric(15,2)
+  cost_item_id uuid [ref: > cost_items.id]
+  grant_id uuid [ref: > grants.id]
+  budget_line_id uuid [ref: > budget_lines.id]
+}
+
+// ───────────────────── Cote și legislație ─────────────────────
+
+Table tax_rates {
+  id uuid [pk]
+  code varchar [not null, note: 'INCOME_TAX, CNAS_EMPLOYER, CNAM_EMPLOYEE, PERSONAL_EXEMPTION_YEAR, VAT_STANDARD...']
+  applies_to contract_type [note: 'null = ambele']
+  value numeric(15,4) [not null, note: 'procent sau sumă']
+  is_percent boolean [default: true]
+  valid_from date [not null]
+  valid_to date
+  legal_basis varchar [note: 'ex. Codul Fiscal art. 33']
+  source_url varchar
+  approved_by uuid [ref: > users.id]
+  legal_update_id uuid [ref: > legal_updates.id]
+  indexes {
+    (code, applies_to, valid_from) [unique]
+  }
+}
+
+Table legal_updates {
+  id uuid [pk]
+  source_url varchar [not null]
+  detected_at timestamp [default: `now()`]
+  title varchar
+  ai_summary text
+  proposed_changes jsonb [note: 'cote noi propuse de AI']
+  status update_status [default: 'pending']
+  reviewed_by uuid [ref: > users.id]
+  reviewed_at timestamp
+}
+
+// ───────────────────── Rapoarte donatori ─────────────────────
+
+Table report_templates {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  donor_id uuid [ref: > donors.id]
+  name varchar [not null]
+  drive_file_id varchar [not null, note: 'șablonul Excel original']
+  mapping jsonb [note: 'celulă Excel -> linie de buget / formulă']
+}
+
+Table generated_reports {
+  id uuid [pk]
+  template_id uuid [not null, ref: > report_templates.id]
+  grant_id uuid [not null, ref: > grants.id]
+  period_from date [not null]
+  period_to date [not null]
+  drive_file_id varchar
+  generated_by uuid [ref: > users.id]
+  created_at timestamp [default: `now()`]
+}
+
+// ───────────────────── Nucleul contabil ─────────────────────
+
+Table accounts {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  code varchar(10) [not null, note: 'ex. 221, 521, 531']
+  name varchar [not null]
+  parent_id uuid [ref: > accounts.id]
+  account_kind account_kind [not null]
+  is_group boolean [default: false, note: 'cont sintetic fără înregistrări directe']
+  is_currency boolean [default: false]
+  subconto1 subconto_type
+  subconto2 subconto_type
+  subconto3 subconto_type
+  indexes {
+    (organization_id, code) [unique]
+  }
+}
+
+Table departments {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null]
+  parent_id uuid [ref: > departments.id]
+  cuatm varchar [note: 'codul localității subdiviziunii — anexa IPC21']
+}
+
+Table accounting_periods {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  year int [not null]
+  month int [not null]
+  is_closed boolean [default: false]
+  closed_by uuid [ref: > users.id]
+  closed_at timestamp
+  indexes {
+    (organization_id, year, month) [unique]
+  }
+}
+
+Table entry_lines {
+  id bigserial [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  document_id uuid [not null, ref: > documents.id, note: 'registratorul (ca în 1C)']
+  line_no int [not null]
+  entry_date date [not null]
+  debit_account_id uuid [not null, ref: > accounts.id]
+  credit_account_id uuid [not null, ref: > accounts.id]
+  amount numeric(15,2) [not null, note: 'în MDL (Сумма)']
+  tax_amount numeric(15,2) [note: 'suma în contabilitatea fiscală (СуммаНУ)']
+  department_id uuid [ref: > departments.id, note: 'Подразделение']
+  currency char(3)
+  currency_amount numeric(15,2)
+  quantity numeric(15,3)
+  debit_subconto jsonb [note: '{counterparty_id, contract_id, ...}']
+  credit_subconto jsonb
+  grant_id uuid [ref: > grants.id]
+  budget_line_id uuid [ref: > budget_lines.id]
+  cost_item_id uuid [ref: > cost_items.id, note: 'dă rândul din 5-CON']
+  activity_type varchar [note: 'ONG17: special_purpose / economic / other']
+  is_non_statutory boolean [default: false, note: 'ONG17: contrar destinației / neprevăzut de statut']
+  description varchar
+  indexes {
+    (organization_id, entry_date)
+    (debit_account_id, entry_date)
+    (credit_account_id, entry_date)
+  }
+}
+
+Table opening_balances {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  account_id uuid [not null, ref: > accounts.id]
+  balance_date date [not null, note: 'data trecerii de la 1C']
+  debit numeric(15,2) [default: 0]
+  credit numeric(15,2) [default: 0]
+  subconto jsonb
+  imported_from_1c boolean [default: true]
+}
+
+Table bank_accounts {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  iban_enc varchar [not null]
+  bank_name varchar
+  bank_code varchar
+  currency char(3) [not null]
+  account_id uuid [ref: > accounts.id, note: 'contul contabil 242/243']
+  grant_id uuid [ref: > grants.id, note: 'cont dedicat grantului']
+}
+
+Table fixed_assets {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  inventory_no varchar [not null]
+  name varchar [not null]
+  initial_cost numeric(15,2) [not null]
+  useful_life_months int
+  commissioning_date date
+  grant_id uuid [ref: > grants.id]
+  document_id uuid [ref: > documents.id]
+}
+
+// ───────────────────── Migrare din 1C ─────────────────────
+
+Table onec_import_runs {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  source varchar [note: 'odata / xml']
+  period_from date
+  period_to date
+  status import_status [default: 'pending']
+  stats jsonb [note: 'câte obiecte pe tip, erori']
+  reconciliation jsonb [note: 'diferențe OSV aplicație vs 1C']
+  started_by uuid [ref: > users.id]
+  started_at timestamp
+  finished_at timestamp
+}
+
+Table onec_id_map {
+  id bigserial [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  onec_type varchar [not null, note: 'ex. Catalog.Контрагенты']
+  onec_guid uuid [not null]
+  local_table varchar [not null]
+  local_id uuid [not null]
+  import_run_id uuid [ref: > onec_import_runs.id]
+  indexes {
+    (organization_id, onec_type, onec_guid) [unique]
+  }
+}
+
+// ───────────────────── Rapoarte fiscale și statistice ─────────────────────
+
+Enum report_status {
+  draft
+  checked
+  submitted
+}
+
+Table report_forms {
+  id uuid [pk]
+  code varchar [not null, note: 'IPC21, 5-CON, ONG17']
+  authority varchar [not null, note: 'SFS / BNS']
+  periodicity varchar [not null, note: 'month / quarter / year']
+  version varchar [not null]
+  valid_from date [not null]
+  valid_to date
+  structure jsonb [not null, note: 'celule, formule de completare, verificări']
+  due_day_rule varchar [note: 'ex. ziua 25 a lunii următoare']
+  indexes {
+    (code, version) [unique]
+  }
+}
+
+Table tax_reports {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  form_id uuid [not null, ref: > report_forms.id]
+  period_from date [not null]
+  period_to date [not null]
+  status report_status [default: 'draft']
+  data jsonb [note: 'valori calculate + corecții manuale']
+  manual_overrides jsonb
+  export_file_id varchar
+  prepared_by uuid [ref: > users.id]
+  submitted_at timestamp
+}
+
+Table reporting_calendar {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  form_id uuid [not null, ref: > report_forms.id]
+  period_from date [not null]
+  period_to date [not null]
+  due_date date [not null]
+  tax_report_id uuid [ref: > tax_reports.id, note: 'null = încă neprezentat']
+  indexes {
+    (organization_id, form_id, period_from) [unique]
+  }
+}

@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContaHub ONG — prototip</title>
+<style>
+:root{
+  --side:#FBF3D5; --side-active:#F3DE8A; --top:#F7E7A6; --btn:#F5D34B; --btn-h:#EBC52E;
+  --border:#C8C8C8; --line:#E4E4E4; --link:#2B5DA8; --green:#3C8D40; --red:#C0392B;
+  --sel:#FCEFB4; --ai:#FFF3B0; --ai-b:#E0B400; --text:#333; --muted:#777; --bg:#fff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:14px "Segoe UI",Arial,sans-serif;color:var(--text);background:var(--bg)}
+a{color:var(--link);cursor:pointer}
+button{font:inherit;cursor:pointer}
+#app{display:grid;grid-template-rows:40px 34px 1fr;grid-template-columns:220px 1fr;height:100vh}
+#top{grid-column:1/3;background:var(--top);display:flex;align-items:center;gap:14px;padding:0 12px;border-bottom:1px solid #E2CF7C}
+#top .logo{font-weight:700;font-size:16px;letter-spacing:.2px}
+#top .logo b{color:var(--red)}
+#top select{font:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:#fff}
+#top .search{margin-left:auto;display:flex;gap:6px;align-items:center}
+#top .search input{width:280px;padding:4px 8px;border:1px solid var(--border);border-radius:3px}
+#top .icons{display:flex;gap:12px;color:#555}
+#side{grid-row:2/4;background:var(--side);border-right:1px solid #E8DBA8;overflow:auto;padding-top:6px}
+#side div{padding:8px 16px;cursor:pointer;display:flex;gap:10px;align-items:center}
+#side div:hover{background:#F7E9B4}
+#side div.active{background:var(--side-active);font-weight:600}
+#side .ico{width:18px;text-align:center;color:#6b5a1a}
+#tabs{display:flex;align-items:flex-end;gap:2px;padding:0 6px;border-bottom:1px solid var(--border);background:#F3F3F3;overflow-x:auto}
+.tab{padding:6px 12px;border:1px solid var(--border);border-bottom:none;border-radius:4px 4px 0 0;background:#E9E9E9;cursor:pointer;white-space:nowrap;display:flex;gap:8px;align-items:center}
+.tab.active{background:#fff;border-bottom:2px solid var(--green);font-weight:600}
+.tab .x{color:#888;font-weight:400}
+.tab .x:hover{color:var(--red)}
+#main{overflow:auto;padding:12px 18px 30px}
+h1{font-size:22px;font-weight:400;margin:4px 0 10px;display:flex;gap:12px;align-items:center}
+h2{color:var(--green);font-size:17px;margin:14px 0 8px}
+.nav-arrows{display:inline-flex;border:1px solid var(--border);border-radius:3px}
+.nav-arrows span{padding:2px 9px;color:#666}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.b{padding:5px 12px;border:1px solid var(--border);background:#fff;border-radius:3px}
+.b:hover{background:#F6F6F6}
+.b.primary{background:var(--btn);border-color:#D9B52A;font-weight:600}
+.b.primary:hover{background:var(--btn-h)}
+.bar .sp{flex:1}
+table.grid{border-collapse:collapse;width:100%;font-size:13px}
+.grid th{background:#F2F2F2;text-align:left;font-weight:400;color:#555;border:1px solid var(--line);padding:5px 8px;position:sticky;top:0}
+.grid td{border:1px solid var(--line);padding:4px 8px;height:26px}
+.grid tr:hover td{background:#FAFAFA}
+.grid tr.sel td{background:var(--sel)}
+.grid td.num,.grid th.num{text-align:right;font-variant-numeric:tabular-nums}
+.st{display:inline-block;width:14px;text-align:center}
+.st.ok{color:var(--green)} .st.no{color:#aaa} .st.del{color:var(--red)}
+.cal{border-collapse:collapse;width:100%}
+.cal td{padding:10px 8px;border-bottom:1px solid #F0F0F0;vertical-align:top}
+.cal tr.soon td{background:#FFF7D1;outline:2px solid #F2C94C;outline-offset:-2px}
+.late{color:var(--red)} .ok{color:var(--green)}
+.cols{display:grid;grid-template-columns:2fr 1fr;gap:28px}
+.orgbar{background:#FBEFC0;padding:8px 10px;display:flex;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:3px;overflow:hidden}
+.seg span{padding:4px 12px;background:#fff;cursor:pointer}
+.seg span.on{color:var(--green);font-weight:600}
+.card{border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin-bottom:10px}
+.meter{height:8px;background:#EEE;border-radius:4px;overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;background:var(--green)}
+.meter i.over{background:var(--red)}
+.form{display:grid;grid-template-columns:150px 1fr 150px 1fr;gap:8px 12px;align-items:center;max-width:980px;margin-bottom:12px}
+.form label{color:#555;text-align:right}
+.form input,.form select{font:inherit;padding:4px 7px;border:1px solid var(--border);border-radius:3px;width:100%;background:#fff}
+.ref{display:flex}
+.ref input{border-radius:3px 0 0 3px}
+.ref span{border:1px solid var(--border);border-left:none;padding:4px 7px;border-radius:0 3px 3px 0;background:#F6F6F6;color:#666;cursor:pointer}
+.ai input{background:var(--ai);border-color:var(--ai-b)}
+.conf{font-size:11px;color:#9a7b00;margin-left:6px;white-space:nowrap}
+.inner-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:8px 0}
+.inner-tabs span{padding:5px 12px;cursor:pointer;border:1px solid transparent;border-bottom:none}
+.inner-tabs span.on{border-color:var(--border);background:#fff;border-radius:3px 3px 0 0;margin-bottom:-1px;font-weight:600}
+.totals{display:flex;justify-content:flex-end;gap:24px;margin-top:8px;font-size:14px}
+.totals b{font-variant-numeric:tabular-nums}
+.split{display:grid;grid-template-columns:minmax(320px,1fr) 1.2fr;gap:18px}
+.scan{border:1px solid var(--border);background:#FAFAFA;padding:16px;font:12px "Courier New",monospace;min-height:520px;position:relative}
+.scan .hl{background:rgba(245,211,75,.45)}
+.scan .stamp{position:absolute;right:18px;top:16px;border:2px solid #7a9;color:#7a9;padding:4px 8px;transform:rotate(-8deg);font-weight:700}
+.hint{background:#EEF4FB;border:1px solid #CFE0F3;padding:8px 10px;border-radius:3px;margin:8px 0;font-size:13px}
+.warn{background:#FDECEA;border:1px solid #F5C6C0}
+.navgroups{display:grid;grid-template-columns:repeat(3,minmax(200px,1fr));gap:20px}
+.navgroups ul{list-style:none;padding:0;margin:0}
+.navgroups li{padding:5px 0}
+.navgroups h3{font-size:14px;color:var(--green);margin:0 0 6px}
+.new{font-size:10px;background:var(--green);color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+.rep td.cell{cursor:pointer;text-decoration:underline dotted #999}
+.rep td.cell:hover{background:var(--sel)}
+.drill{margin-top:12px}
+.kbd{font:11px monospace;border:1px solid #ccc;border-bottom-width:2px;border-radius:3px;padding:0 4px;background:#fafafa}
+.footer-note{color:var(--muted);font-size:12px;margin-top:18px}
+@media (max-width:900px){#app{grid-template-columns:56px 1fr}#side div span.t{display:none}.cols,.split{grid-template-columns:1fr}.form{grid-template-columns:110px 1fr}#top .search input{width:120px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <span>☰</span>
+    <span class="logo">Conta<b>Hub</b> ONG</span>
+    <select id="org"><option>AO „CARTERA”</option><option>AO „Exemplu Verde”</option><option>Fundația „Pilot”</option></select>
+    <div class="search"><input placeholder="Căutare în program și legislație (Ctrl+F)"></div>
+    <div class="icons" title="Notificări · Istoric · Favorite"><span>🔔</span><span>⏱</span><span>☆</span><span>Contabil-șef ▾</span></div>
+  </div>
+  <div id="side"></div>
+  <div id="tabs"></div>
+  <div id="main"></div>
+</div>
+
+<script>
+/* ───────────── date de exemplu (fictive) ───────────── */
+const SECTIONS = [
+  ['home','≡','Principal'],['head','↗','Conducătorului'],['bank','₿','Bancă și casă'],['sales','⬆','Vânzări'],
+  ['purch','⬇','Achiziții'],['stock','▦','Depozit'],['fa','▣','Mijloace fixe și INM'],['pay','👤','Salarii și personal'],
+  ['ngo','♡','Granturi și ONG'],['ops','Dt','Operațiuni'],['rep','▥','Rapoarte'],['cat','☰','Cataloage'],['adm','⚙','Administrare']
+];
+const NAV = {
+  purch:{Documente:['Facturi primite','Plăți către persoane fizice|new','Servicii primite (acte)','Facturi de la furnizor'],
+         Jurnale:['Documente scanate (AI)|new','Facturi fiscale primite'],Rapoarte:['Datorii față de furnizori','Achiziții pe granturi']},
+  pay:{Documente:['Angajare','Calcul salariu','Plată către persoană fizică|new','Contracte civile|new','Cereri de scutire','Concedii medicale'],
+       Rapoarte:['Stat de plată','Fișa de salariu','IPC21'],Cataloage:['Persoane fizice','Tipuri de calcul']},
+  ngo:{Granturi:['Proiecte / granturi','Linii de buget','Donatori'],Documente:['Finanțare primită','Repartizarea cheltuielilor'],
+       Rapoarte:['Execuția bugetului','Raport pentru donator (Excel)|new','5-CON','ONG17|new']},
+  rep:{Standard:['Balanța de verificare (OSV)','Fișa contului','Analiza contului','Cartea mare'],Fiscale:['IPC21','ONG17|new','TVA'],
+       Statistice:['5-CON'],Donatori:['Raport pentru donator (Excel)|new']},
+  bank:{Documente:['Ordine de plată','Încasări pe cont','Plăți din cont','Încasări numerar','Plăți numerar','Decont de avans'],Servicii:['Import extras bancar','Curs BNM']},
+};
+const CAL = [
+  ['25 octombrie','5-CON trimestrul III 2026','late'],['25 octombrie','IPC21 septembrie 2026','ok'],
+  ['25 noiembrie','IPC21 octombrie 2026','soon'],['25 decembrie','IPC21 noiembrie 2026',''],
+  ['25 ianuarie','5-CON trimestrul IV 2026',''],['25 martie','ONG17 pentru 2026','']
+];
+const INVOICES = [
+  {st:'ok',n:'AA0001234',d:'03.11.2026',cp:'„Birotica Plus” SRL',sum:4560.00,gr:'SOR-2026-01 / 2.1 Echipament'},
+  {st:'ok',n:'EF2026117',d:'05.11.2026',cp:'„Moldtelecom” SA',sum:612.40,gr:'SOR-2026-01 / 3.2 Comunicații'},
+  {st:'no',n:'BB0045521',d:'10.11.2026',cp:'„Taxi Rapid” SRL',sum:350.00,gr:'— nealocat —'},
+  {st:'ok',n:'AC0009870',d:'12.11.2026',cp:'„Print Expres” SRL',sum:1280.00,gr:'UE-2025-03 / 4.1 Publicații'},
+  {st:'del',n:'AA0001199',d:'14.11.2026',cp:'„Birotica Plus” SRL',sum:4560.00,gr:'— dublură —'},
+];
+const PEOPLE = [
+  {st:'ok',n:'PF-0007',d:'01.11.2026',p:'Popescu Ion',kind:'Chirie birou (FOL)',code:'FOL',gross:5000,tax:350},
+  {st:'ok',n:'PF-0008',d:'05.11.2026',p:'Rusu Maria',kind:'Servicii / contract civil (PL)',code:'PL',gross:3000,tax:360},
+  {st:'no',n:'PF-0009',d:'15.11.2026',p:'Ceban Vasile',kind:'Arendă teren agricol (PLs)',code:'PLs',gross:1200,tax:0},
+];
+const IPC = [
+  ['11','SAL','Plăți salariale, art.88 CF',84200,9150,7578],['31','PL','Venituri din care se reține impozit, art.90 (contracte civile)',3000,360,''],
+  ['32','PLs','Venituri scutite de reținere prealabilă, art.90',1200,0,''],['41','FOL','Locațiune de la persoane fizice, art.90¹ alin.(3)',5000,350,''],
+  ['49','DON pf','Donații către persoane fizice',0,0,''],['61','','TOTAL',93400,9860,7578]
+];
+const fmt = v => v===''?'':Number(v).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+const ST = {ok:'<span class="st ok" title="Înregistrat">✓</span>',no:'<span class="st no" title="Neînregistrat">○</span>',del:'<span class="st del" title="Marcat pentru ștergere">✕</span>'};
+
+/* ───────────── file (tab-uri) ───────────── */
+let tabs=[{id:'home',title:'Pagina inițială',fixed:true}], active='home';
+function openTab(id,title){ if(!tabs.find(t=>t.id===id)) tabs.push({id,title}); active=id; render(); }
+function closeTab(id,e){ if(e) e.stopPropagation(); const i=tabs.findIndex(t=>t.id===id); if(i<0||tabs[i].fixed) return;
+  tabs.splice(i,1); if(active===id) active=tabs[Math.max(0,i-1)].id; render(); }
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeTab(active);
+  if(e.ctrlKey && e.key==='Enter' && active.startsWith('doc')){ closeTab(active); }
+  if(e.key==='Insert' && active==='list-inv'){ openTab('doc-new','Factură primită (nouă) *'); }
+});
+
+/* ───────────── ecrane ───────────── */
+const SCREENS = {
+  home(){
+    return `<h1><span class="nav-arrows"><span>←</span><span>→</span></span> Pagina inițială</h1>
+    <div class="cols"><div>
+      <h2>Astăzi: 18 noiembrie, miercuri</h2>
+      <div class="orgbar"><a>AO „CARTERA”</a><span class="seg"><span class="on">Sarcini</span><span>Monitor</span></span></div>
+      <div class="bar" style="margin-top:6px"><a>Sarcini îndeplinite</a><span class="sp"></span><a>Setarea listei de rapoarte</a></div>
+      <table class="cal">${CAL.map(([d,r,s])=>`<tr class="${s==='soon'?'soon':''}"><td style="width:150px">📄 ${d}</td>
+        <td><a onclick="openTab('rep-ipc','IPC21 octombrie 2026')">${r}</a></td>
+        <td style="width:170px" class="${s==='late'?'late':s==='ok'?'ok':''}">${s==='late'?'Restanță':s==='ok'?'Prezentat ✓':s==='soon'?'A rămas o săptămână':''}</td></tr>`).join('')}</table>
+    </div><div>
+      <h2>Documente de verificat <span class="new">AI</span></h2>
+      <div class="card">3 facturi scanate și 1 ordin de plată citite automat din Google Drive.<br>
+        <a onclick="openTab('doc-ai','Verificare: factura BB0045521')">Deschide prima →</a></div>
+      <h2>Execuția bugetelor</h2>
+      ${[['SOR-2026-01 (Fundația Soros)',62],['UE-2025-03 (Uniunea Europeană)',91],['Cotizații membri',104]].map(([g,p])=>
+        `<div class="card"><a onclick="openTab('rep-budget','Execuția bugetului')">${g}</a> — ${p}%<div class="meter"><i class="${p>100?'over':''}" style="width:${Math.min(p,100)}%"></i></div>${p>100?'<div class="late" style="font-size:12px;margin-top:4px">Depășire pe linia 3.2 Comunicații</div>':''}</div>`).join('')}
+      <h2>Actualizări legislative</h2>
+      <div class="card">1 propunere nouă: <b>plafonul scutirii personale 2027</b> — <a>verifică și aprobă</a></div>
+    </div></div>`;
+  },
+  section(id){
+    const sec=SECTIONS.find(s=>s[0]===id); const groups=NAV[id]||{Documente:['(în lucru)']};
+    return `<h1>${sec[2]}</h1><div class="navgroups">${Object.entries(groups).map(([g,items])=>`<div><h3>${g}</h3><ul>${items.map(it=>{
+      const [name,flag]=it.split('|'); const target=LINK[name];
+      return `<li><a onclick="${target?`openTab('${target[0]}','${target[1]}')`:''}">${name}</a>${flag?'<span class="new">nou</span>':''}</li>`}).join('')}</ul></div>`).join('')}</div>
+      <p class="footer-note">Elementele marcate „nou” nu există în 1C actual.</p>`;
+  },
+  'list-inv'(){
+    return `<h1><span class="nav-arrows"><span>←</span><span>→</span></span> Facturi primite</h1>
+    <div class="bar"><button class="b primary" onclick="openTab('doc-new','Factură primită (nouă) *')">Creare</button><button class="b">Copiere</button>
+      <button class="b">Înregistrare</button><button class="b" onclick="openTab('dtkt','Dt/Kt: AA0001234')">Dt/Kt</button><button class="b">Tipărire ▾</button>
+      <button class="b" onclick="openTab('doc-ai','Verificare: factura BB0045521')">📥 Din Drive (AI)</button>
+      <span class="sp"></span><select class="b"><option>Noiembrie 2026</option><option>Trimestrul IV</option></select><input class="b" placeholder="Căutare (Ctrl+F)"></div>
+    <table class="grid"><tr><th></th><th>Număr</th><th>Data</th><th>Contrapartidă</th><th class="num">Suma, lei</th><th>Grant / linie de buget</th></tr>
+    ${INVOICES.map((r,i)=>`<tr class="${i===0?'sel':''}" ondblclick="openTab('doc-inv','Factură primită ${r.n}')"><td>${ST[r.st]}</td><td>${r.n}</td><td>${r.d}</td><td>${r.cp}</td><td class="num">${fmt(r.sum)}</td><td>${r.gr}</td></tr>`).join('')}</table>
+    <p class="footer-note">Dublu-click deschide documentul · <span class="kbd">Insert</span> document nou · <span class="kbd">Esc</span> închide fila</p>`;
+  },
+  'doc-inv'(){ return invoiceForm(false); },
+  'doc-new'(){ return invoiceForm(false,true); },
+  'doc-ai'(){
+    return `<h1>Verificare document scanat <span class="new">AI</span></h1>
+    <div class="bar"><button class="b primary" onclick="closeTab('doc-ai')">Confirmă și înregistrează</button><button class="b">Doar salvează</button><button class="b">Respinge</button>
+      <span class="sp"></span><a>Deschide originalul pe Drive ↗</a></div>
+    <div class="hint">Câmpurile <span style="background:var(--ai);padding:0 4px">galbene</span> au încredere sub 90% — verifică-le cu scanul din stânga. Grantul și linia de buget sunt propuse după istoricul contrapartidei.</div>
+    <div class="split"><div class="scan"><div class="stamp">ACHITAT</div>
+      <b>FACTURA FISCALĂ</b> Seria <span class="hl">BB</span> Nr. <span class="hl">0045521</span><br>Data: <span class="hl">10.11.2026</span><br><br>
+      Furnizor: <span class="hl">„Taxi Rapid” SRL</span><br>IDNO: <span class="hl">1012600012345</span><br>IBAN: MD24AG000000022512345678<br><br>
+      Cumpărător: AO „CARTERA”<br><br>
+      ───────────────────────────────<br>Denumire          Cant.   Suma<br>───────────────────────────────<br>
+      Servicii transport  1   <span class="hl">350,00</span><br>(deplasare atelier Bălți)<br>───────────────────────────────<br>
+      Total fără TVA:            350,00<br>TVA:                       <span class="hl">0,00</span><br><b>Total de plată:           350,00</b>
+    </div><div>
+      <div class="form" style="grid-template-columns:130px 1fr">
+        <label>Tip document</label><div><select><option>Servicii primite (act)</option><option>Factură primită</option></select></div>
+        <label>Număr</label><div style="display:flex;align-items:center"><input value="BB0045521"><span class="conf">98%</span></div>
+        <label>Data</label><div class="ai" style="display:flex;align-items:center"><input value="10.11.2026"><span class="conf">84%</span></div>
+        <label>Contrapartidă</label><div class="ref"><input value="„Taxi Rapid” SRL (IDNO 1012600012345)"><span>…</span></div>
+        <label>Contract</label><div class="ref"><input value="Contract nr. 12/2026"><span>…</span></div>
+        <label>Grant</label><div class="ref ai"><input value="SOR-2026-01 Fundația Soros"><span>…</span></div>
+        <label>Linie de buget</label><div class="ref ai"><input value="3.1 Transport și deplasări"><span>…</span></div>
+        <label>Articol cheltuieli</label><div class="ref"><input value="Servicii de transport (5-CON rând 071)"><span>…</span></div>
+      </div>
+      <table class="grid"><tr><th>Serviciu</th><th class="num">Cant.</th><th class="num">Suma</th><th class="num">TVA</th><th>Cont</th></tr>
+        <tr><td>Servicii transport (deplasare atelier Bălți)</td><td class="num">1</td><td class="num">350,00</td><td class="num">0,00</td><td>713</td></tr></table>
+      <div class="totals"><span>Total: <b>350,00</b> lei</span><span>TVA: <b>0,00</b></span></div>
+    </div></div>`;
+  },
+  dtkt(){
+    return `<h1>Înregistrări contabile (Dt/Kt): Factură primită AA0001234</h1>
+    <table class="grid"><tr><th>Data</th><th>Dt</th><th>Subconto Dt</th><th>Kt</th><th>Subconto Kt</th><th class="num">Suma</th><th>Grant / linie</th><th>Conținut</th></tr>
+    <tr><td>03.11.2026</td><td>123</td><td>Imprimantă laser</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">3 800,00</td><td>SOR-2026-01 / 2.1</td><td>Intrare echipament</td></tr>
+    <tr><td>03.11.2026</td><td>534</td><td>TVA</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">760,00</td><td>SOR-2026-01 / 2.1</td><td>TVA (ONG neînregistrat — inclus în cost)</td></tr></table>
+    <div class="totals"><span>Total Dt = Kt: <b>4 560,00</b></span></div>`;
+  },
+  'list-pf'(){
+    return `<h1>Plăți către persoane fizice <span class="new">nou</span></h1>
+    <div class="hint">Chiria, arenda, contractele civile, donațiile către persoane fizice — cu reținerea impozitului la sursă. Sumele ajung <b>automat</b> în IPC21 pe codul corect (FOL, PL, PLs, DON pf…).</div>
+    <div class="bar"><button class="b primary" onclick="openTab('doc-pf','Plată către persoană fizică (nouă) *')">Creare</button><button class="b">Copiere</button><button class="b">Dt/Kt</button><span class="sp"></span><select class="b"><option>Noiembrie 2026</option></select></div>
+    <table class="grid"><tr><th></th><th>Număr</th><th>Data</th><th>Persoana fizică</th><th>Tip plată</th><th>Cod IPC21</th><th class="num">Suma brută</th><th class="num">Impozit reținut</th></tr>
+    ${PEOPLE.map(r=>`<tr ondblclick="openTab('doc-pf','Plată ${r.n}')"><td>${ST[r.st]}</td><td>${r.n}</td><td>${r.d}</td><td>${r.p}</td><td>${r.kind}</td><td><b>${r.code}</b></td><td class="num">${fmt(r.gross)}</td><td class="num">${fmt(r.tax)}</td></tr>`).join('')}</table>`;
+  },
+  'doc-pf'(){
+    return `<h1>Plată către persoană fizică PF-0007 din 01.11.2026</h1>
+    <div class="bar"><button class="b primary" onclick="closeTab('doc-pf')">Înregistrează și închide</button><button class="b">Înregistrează</button><button class="b" onclick="openTab('dtkt','Dt/Kt')">Dt/Kt</button><button class="b">Tipărire ▾</button></div>
+    <div class="form">
+      <label>Persoana fizică</label><div class="ref"><input value="Popescu Ion (IDNP ••••••••••123)"><span>…</span></div>
+      <label>Data calculului</label><input value="01.11.2026">
+      <label>Tip plată</label><select><option>Chirie / locațiune (FOL)</option><option>Arendă teren agricol (PLs)</option><option>Servicii / contract civil (PL)</option><option>Donație către persoană fizică (DON pf)</option><option>Dobândă (DOB)</option><option>Royalty (ROY)</option></select>
+      <label>Cod sursă IPC21</label><input value="FOL — rândul 41" disabled>
+      <label>Suma brută</label><input value="5 000,00">
+      <label>Cota de reținere</label><input value="7% (valabilă din 01.01.2026)" disabled>
+      <label>Impozit reținut</label><input value="350,00" disabled>
+      <label>Suma de plată</label><input value="4 650,00" disabled>
+      <label>Grant</label><div class="ref"><input value="Cotizații membri"><span>…</span></div>
+      <label>Articol cheltuieli</label><div class="ref"><input value="Chirie birou (5-CON rând 130)"><span>…</span></div>
+    </div>
+    <div class="hint">Cota se ia din tabelul cotelor cu perioadă de valabilitate. Valoarea din prototip e doar exemplu.</div>`;
+  },
+  'rep-ipc'(){
+    return `<h1>IPC21 — Declarație privind reținerea impozitului pe venit, CNAM și CNAS</h1>
+    <div class="bar"><label>Perioada:</label><select class="b"><option>Octombrie 2026</option></select><select class="b"><option>Primară</option><option>De corectare</option></select>
+      <button class="b primary">Generează</button><button class="b">Verifică</button><button class="b">Export XML (e-Cabinet)</button><button class="b">PDF</button></div>
+    <div class="hint">Click pe o sumă → documentele din care provine.</div>
+    <b>Tabelul nr. 1</b>
+    <table class="grid rep" style="margin-top:6px"><tr><th>Cod</th><th>Sursa</th><th>Tipul sursei de venit</th><th class="num">4. Venit calculat</th><th class="num">5. Impozit reținut</th><th class="num">6. CNAM reținut</th></tr>
+    ${IPC.map(r=>`<tr ${r[0]==='61'?'style="font-weight:700"':''}><td>${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td>
+      <td class="num cell" onclick="drill('${r[1]}')">${fmt(r[3])}</td><td class="num cell" onclick="drill('${r[1]}')">${fmt(r[4])}</td><td class="num">${fmt(r[5])}</td></tr>`).join('')}</table>
+    <div class="hint warn">Verificare: contractele civile apar doar la PL (rândul 31), scutirea personală s-a aplicat doar la SAL. ✓ Fără erori.</div>
+    <div id="drill" class="drill"></div>`;
+  },
+  'rep-budget'(){
+    const L=[['1.1','Salarii personal proiect',120000,96000],['2.1','Echipament',30000,28360],['3.1','Transport și deplasări',15000,6350],['3.2','Comunicații',6000,6612.4],['4.1','Publicații',10000,1280]];
+    return `<h1>Execuția bugetului — SOR-2026-01 (Fundația Soros)</h1>
+    <div class="bar"><select class="b"><option>01.01.2026 – 31.12.2026</option></select><button class="b primary">Generează</button><button class="b">Raport pentru donator (Excel)</button></div>
+    <table class="grid"><tr><th>Linie</th><th>Denumire</th><th class="num">Planificat</th><th class="num">Cheltuit</th><th class="num">Rest</th><th class="num">%</th></tr>
+    ${L.map(([c,n,p,s])=>`<tr><td>${c}</td><td>${n}</td><td class="num">${fmt(p)}</td><td class="num">${fmt(s)}</td><td class="num ${p-s<0?'late':''}">${fmt(p-s)}</td><td class="num ${s>p?'late':''}">${Math.round(s/p*100)}%</td></tr>`).join('')}</table>`;
+  }
+};
+const LINK = {'Facturi primite':['list-inv','Facturi primite'],'Plăți către persoane fizice':['list-pf','Plăți către persoane fizice'],
+  'Plată către persoană fizică':['list-pf','Plăți către persoane fizice'],'Documente scanate (AI)':['doc-ai','Verificare: factura BB0045521'],
+  'IPC21':['rep-ipc','IPC21 octombrie 2026'],'Execuția bugetului':['rep-budget','Execuția bugetului'],
+  'Raport pentru donator (Excel)':['rep-budget','Execuția bugetului']};
+
+function invoiceForm(_,isNew){
+  const r=INVOICES[0];
+  return `<h1>Factură primită ${isNew?'(nouă)':r.n+' din '+r.d}</h1>
+  <div class="bar"><button class="b primary" onclick="closeTab(active)">Înregistrează și închide</button><button class="b">Înregistrează</button>
+    <button class="b" onclick="openTab('dtkt','Dt/Kt: AA0001234')">Dt/Kt</button><button class="b">Tipărire ▾</button><span class="sp"></span><a>Scan atașat (Drive) ↗</a></div>
+  <div class="form">
+    <label>Număr</label><input value="${isNew?'':r.n}"><label>Data</label><input value="${isNew?'18.11.2026':r.d}">
+    <label>Contrapartidă</label><div class="ref"><input value="${isNew?'':r.cp}"><span>…</span></div>
+    <label>Contract</label><div class="ref"><input value="${isNew?'':'Contract nr. 45 din 10.01.2026'}"><span>…</span></div>
+    <label>Grant</label><div class="ref"><input value="${isNew?'':'SOR-2026-01 Fundația Soros'}"><span>…</span></div>
+    <label>Subdiviziune</label><div class="ref"><input value="Oficiul central"><span>…</span></div>
+  </div>
+  <div class="inner-tabs"><span class="on">Mărfuri și echipament (1)</span><span>Servicii (0)</span><span>Plată</span><span>Suplimentar</span></div>
+  <div class="bar"><button class="b">Adaugă</button><button class="b">Selectare</button><button class="b">↑</button><button class="b">↓</button></div>
+  <table class="grid"><tr><th>N</th><th>Denumire</th><th class="num">Cantitate</th><th class="num">Preț</th><th class="num">Suma</th><th class="num">% TVA</th><th class="num">TVA</th><th>Linie de buget</th><th>Cont</th></tr>
+  ${isNew?'<tr><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>':
+  '<tr><td>1</td><td>Imprimantă laser A4</td><td class="num">1</td><td class="num">3 800,00</td><td class="num">3 800,00</td><td class="num">20%</td><td class="num">760,00</td><td>2.1 Echipament</td><td>123</td></tr>'}</table>
+  <div class="totals"><span>Total: <b>${isNew?'0,00':'4 560,00'}</b> lei</span><span>TVA: <b>${isNew?'0,00':'760,00'}</b></span></div>
+  <p class="footer-note"><span class="kbd">Ctrl+Enter</span> înregistrează și închide · <span class="kbd">Esc</span> închide fără salvare</p>`;
+}
+function drill(code){
+  const rows=PEOPLE.filter(p=>p.code===code);
+  document.getElementById('drill').innerHTML = `<b>Descifrare: cod ${code||'TOTAL'}</b>` + (rows.length?
+    `<table class="grid" style="margin-top:6px"><tr><th>Document</th><th>Persoana</th><th class="num">Suma</th><th class="num">Impozit</th></tr>${rows.map(r=>
+      `<tr ondblclick="openTab('doc-pf','Plată ${r.n}')"><td><a onclick="openTab('doc-pf','Plată ${r.n}')">Plată către persoană fizică ${r.n} din ${r.d}</a></td><td>${r.p}</td><td class="num">${fmt(r.gross)}</td><td class="num">${fmt(r.tax)}</td></tr>`).join('')}</table>`
+    : `<p class="footer-note">În prototip descifrarea e demonstrată pe codurile PL, PLs și FOL.</p>`);
+}
+
+/* ───────────── randare ───────────── */
+let section='home';
+function render(){
+  document.getElementById('side').innerHTML = SECTIONS.map(([id,ico,t])=>
+    `<div class="${section===id?'active':''}" onclick="section='${id}'; ${id==='home'?"active='home'":`openTab('sec-${id}','${t}')`}; render()"><span class="ico">${ico}</span><span class="t">${t}</span></div>`).join('');
+  document.getElementById('tabs').innerHTML = tabs.map(t=>
+    `<div class="tab ${t.id===active?'active':''}" onclick="active='${t.id}';render()">${t.fixed?'⌂ ':''}${t.title}${t.fixed?'':` <span class="x" onclick="closeTab('${t.id}',event)">×</span>`}</div>`).join('');
+  const id=active;
+  document.getElementById('main').innerHTML = id.startsWith('sec-') ? SCREENS.section(id.slice(4)) : (SCREENS[id]?SCREENS[id]():'');
+}
+render();
+</script>
+</body>
+</html>
