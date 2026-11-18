@@ -52,6 +52,35 @@ Enum update_status {
   rejected
 }
 
+Enum line_kind {
+  fixed_asset
+  low_value_item [note: 'OMVSD']
+  material
+  goods
+  service
+}
+
+Enum storage_provider {
+  google_drive
+  local_folder [note: 'montat pe server / rețea']
+  sync_agent [note: 'folder pe calculatorul utilizatorului']
+}
+
+Enum bank_file_type {
+  txt
+  dbf
+  dbo
+  xml
+  csv
+}
+
+Enum ai_action_status {
+  pending
+  applied
+  rejected
+  reverted
+}
+
 Enum import_status {
   pending
   running
@@ -232,7 +261,8 @@ Table documents {
   is_posted boolean [default: false, note: 'înregistrat (проведён)']
   deletion_mark boolean [default: false, note: 'marcat pentru ștergere']
   version int [default: 1, note: 'blocare optimistă la lucru simultan']
-  drive_file_id varchar [note: 'scanul original pe Drive (null pentru documente create manual)']
+  storage_connection_id uuid [ref: > storage_connections.id, note: 'Drive sau folder local']
+  file_id varchar [note: 'scanul original (null pentru documente create manual)']
   file_name varchar
   mime_type varchar
   sha256 char(64) [note: 'detectare dubluri scanuri']
@@ -282,6 +312,12 @@ Table invoice_lines {
   unit_price numeric(15,4)
   vat_rate numeric(5,2)
   amount numeric(15,2) [not null]
+  line_kind line_kind [not null, default: 'service', note: 'o factură poate avea MF + OMVSD + materiale']
+  account_id uuid [ref: > accounts.id]
+  budget_line_id uuid [ref: > budget_lines.id]
+  cost_item_id uuid [ref: > cost_items.id]
+  fixed_asset_id uuid [ref: > fixed_assets.id, note: 'fișa MF creată automat din acest rând']
+  put_into_use boolean [default: true, note: 'MF pus în funcțiune / OMVSD dat în exploatare la aceeași dată']
 }
 
 Table payment_orders {
@@ -423,19 +459,44 @@ Table report_templates {
   organization_id uuid [not null, ref: > organizations.id]
   donor_id uuid [ref: > donors.id]
   name varchar [not null]
-  drive_file_id varchar [not null, note: 'șablonul Excel original']
-  mapping jsonb [note: 'celulă Excel -> linie de buget / formulă']
+  storage_connection_id uuid [ref: > storage_connections.id]
+  file_id varchar [not null, note: 'șablonul Excel original al donatorului']
+  mapping jsonb [note: 'celulă Excel -> linie de buget / perioadă / tip valoare; propus de AI, confirmat de contabil']
+  mapping_confirmed_by uuid [ref: > users.id]
 }
 
-Table generated_reports {
+Table donor_requirements {
+  id uuid [pk]
+  donor_id uuid [not null, ref: > donors.id]
+  grant_id uuid [ref: > grants.id, note: 'null = valabil pentru toate granturile donatorului']
+  instructions text [not null, note: 'scris de contabil în cuvinte: ce documente cere donatorul']
+  rules jsonb [note: 'reguli structurate generate de AI: tip cheltuială -> tipuri de documente cerute']
+  confirmed_by uuid [ref: > users.id]
+  updated_at timestamp
+}
+
+Table report_packages {
   id uuid [pk]
   template_id uuid [not null, ref: > report_templates.id]
   grant_id uuid [not null, ref: > grants.id]
   period_from date [not null]
   period_to date [not null]
-  drive_file_id varchar
+  status varchar [note: 'generating / ready / failed']
+  root_folder_id varchar [note: 'Rapoarte/<Donator>/<Grant>/<Perioada>']
+  excel_file_id varchar
+  missing_documents jsonb [note: 'lista de verificare: ce lipsește pe fiecare cheltuială']
   generated_by uuid [ref: > users.id]
   created_at timestamp [default: `now()`]
+}
+
+Table report_package_items {
+  id uuid [pk]
+  package_id uuid [not null, ref: > report_packages.id]
+  budget_line_id uuid [ref: > budget_lines.id]
+  document_id uuid [not null, ref: > documents.id]
+  folder_path varchar [note: 'ex. 2.1 Echipament/']
+  file_id varchar [note: 'copia/scurtătura din pachet']
+  selected_by_ai boolean [default: true]
 }
 
 // ───────────────────── Nucleul contabil ─────────────────────
@@ -535,10 +596,161 @@ Table fixed_assets {
   inventory_no varchar [not null]
   name varchar [not null]
   initial_cost numeric(15,2) [not null]
+  residual_value numeric(15,2) [default: 0]
   useful_life_months int
+  depreciation_method varchar [default: 'linear']
+  asset_group varchar [note: 'grupa / categoria — dă durata și metoda implicită']
+  account_id uuid [ref: > accounts.id, note: 'contul MF (ex. 123)']
+  depreciation_account_id uuid [ref: > accounts.id, note: 'contul amortizării (ex. 124)']
+  expense_account_id uuid [ref: > accounts.id, note: 'unde merge cheltuiala cu amortizarea']
   commissioning_date date
+  depreciation_start date [note: 'luna următoare punerii în funcțiune']
+  status varchar [default: 'in_use', note: 'in_use / suspended / disposed']
+  department_id uuid [ref: > departments.id]
   grant_id uuid [ref: > grants.id]
+  budget_line_id uuid [ref: > budget_lines.id]
+  document_id uuid [ref: > documents.id, note: 'factura din care a fost creat']
+}
+
+Table month_close_runs {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  year int [not null]
+  month int [not null]
+  document_id uuid [ref: > documents.id, note: 'registratorul înregistrărilor închiderii']
+  steps jsonb [note: '[{step: depreciation, status: done, entries: 12}, ...]']
+  status varchar [note: 'draft / done / reverted']
+  run_by uuid [ref: > users.id]
+  run_at timestamp
+  indexes {
+    (organization_id, year, month) [unique]
+  }
+}
+
+// ───────────────────── Surse de documente ─────────────────────
+
+Table storage_connections {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  provider storage_provider [not null]
+  name varchar [not null, note: 'ex. Drive-ul organizației, Folder contabilitate']
+  root_path varchar [note: 'ID folder Drive / cale locală']
+  credentials_enc text [note: 'token OAuth sau token agent, criptat']
+  owner_user_id uuid [ref: > users.id, note: 'pentru Drive personal / agent pe calculatorul utilizatorului']
+  is_default boolean [default: false]
+  last_sync_at timestamp
+}
+
+// ───────────────────── Banca ─────────────────────
+
+Table bank_formats {
+  id uuid [pk]
+  bank_name varchar [not null]
+  file_type bank_file_type [not null]
+  direction varchar [not null, note: 'import_statement / export_payments']
+  encoding varchar [default: 'cp1251']
+  layout jsonb [not null, note: 'separator sau lățimi fixe, maparea câmpurilor']
+  version int [default: 1]
+}
+
+Table bank_imports {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  bank_account_id uuid [not null, ref: > bank_accounts.id]
+  format_id uuid [not null, ref: > bank_formats.id]
+  file_name varchar
+  file_sha256 char(64)
+  rows_total int
+  rows_created int
+  rows_skipped int [note: 'deja importate']
+  rows_failed int
+  errors jsonb
+  imported_by uuid [ref: > users.id]
+  imported_at timestamp [default: `now()`]
+}
+
+Table bank_transactions {
+  id uuid [pk]
+  import_id uuid [not null, ref: > bank_imports.id]
+  dedup_key varchar [unique, not null, note: 'bancă+cont+dată+nr+sumă — fără dubluri la reimport']
+  tx_date date [not null]
+  direction payment_direction [not null]
+  amount numeric(15,2) [not null]
+  counterparty_iban varchar
+  counterparty_idno varchar
+  purpose varchar
+  document_id uuid [ref: > documents.id, note: 'documentul creat din rând']
+}
+
+// ───────────────────── e-Factura ─────────────────────
+
+Table efactura_messages {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  direction varchar [not null, note: 'received / sent']
+  efactura_id varchar [not null]
+  status varchar [note: 'draft / sent / signed / accepted / rejected']
+  payload_xml text
   document_id uuid [ref: > documents.id]
+  synced_at timestamp
+  indexes {
+    (organization_id, efactura_id) [unique]
+  }
+}
+
+// ───────────────────── Asistentul AI ─────────────────────
+
+Table ai_conversations {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  user_id uuid [not null, ref: > users.id]
+  title varchar
+  context jsonb [note: 'ecranul / documentul deschis la început']
+  created_at timestamp [default: `now()`]
+}
+
+Table ai_messages {
+  id bigserial [pk]
+  conversation_id uuid [not null, ref: > ai_conversations.id]
+  role varchar [not null, note: 'user / assistant / tool']
+  content text
+  tool_calls jsonb
+  sources jsonb [note: 'linkuri din căutarea pe internet']
+  created_at timestamp [default: `now()`]
+}
+
+Table ai_actions {
+  id uuid [pk]
+  message_id bigint [ref: > ai_messages.id]
+  kind varchar [not null, note: 'draft_document / propose_entries / ui_change / donor_package / tax_rate_update / remember_rule']
+  payload jsonb [not null]
+  status ai_action_status [default: 'pending']
+  decided_by uuid [ref: > users.id]
+  decided_at timestamp
+  result_ref varchar [note: 'ce s-a creat la aplicare (id document, override...)']
+}
+
+Table ai_memory {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  rule text [not null, note: 'ex. „la noi chiria se pune pe linia 3.4”']
+  created_by uuid [ref: > users.id]
+  created_at timestamp [default: `now()`]
+  is_active boolean [default: true]
+}
+
+Table ui_overrides {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  user_id uuid [ref: > users.id, note: 'null = pentru toată organizația']
+  form_key varchar [not null, note: 'ex. document.invoice.form, document.invoice.list']
+  element_key varchar [not null, note: 'ex. command.dtkt, field.grant, column.department']
+  change jsonb [not null, note: '{label | order | visible | default}']
+  version int [default: 1]
+  created_by_ai boolean [default: false]
+  approved_by uuid [ref: > users.id, note: 'obligatoriu pentru override-uri de organizație']
+  is_active boolean [default: true]
+  created_at timestamp [default: `now()`]
 }
 
 // ───────────────────── Migrare din 1C ─────────────────────

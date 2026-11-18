@@ -64,6 +64,31 @@ O instanță deservește **mai multe organizații**; fiecare contabil vede doar 
 ### M2. Documente principale (versiunea 1)
 Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras bancar, dispoziție de încasare/plată (casă), avans spre decontare, act de prestări servicii, intrare/punere în funcțiune/amortizare mijloace fixe, calcul salariu, plata salariului, operațiune manuală.
 
+### M2b. Mijloace fixe fără documente separate + închiderea lunii
+- F2b.1 **O singură factură primită** poate conține rânduri de tipuri diferite: *mijloc fix*, *OMVSD* (obiecte de mică valoare și scurtă durată), *materiale*, *mărfuri*, *servicii*. Fiecare rând are tipul lui și contul implicit.
+- F2b.2 La înregistrarea facturii, pentru rândurile *mijloc fix* se creează automat fișa mijlocului fix (denumire, nr. de inventar propus, valoare, grant) și se propune punerea în funcțiune la aceeași dată; durata de utilizare și metoda se iau din grupa/categoria aleasă.
+- F2b.3 OMVSD: la înregistrare se poate alege „dare în exploatare imediată” (cu trecerea pe cheltuieli conform politicii contabile).
+- F2b.4 **Asistentul „Închiderea lunii”**: o listă de pași cu statut (✓ / de făcut / eroare) — calculul amortizării, calculul salariului, repartizarea cheltuielilor pe granturi, diferențe de curs, recunoașterea veniturilor din mijloace cu destinație specială, închiderea conturilor, verificări (Dt=Kt, solduri negative, documente neînregistrate). Fiecare pas arată ce înregistrări va genera **înainte** de a le face; pașii se pot anula și reface.
+- F2b.5 Amortizarea se calculează lunar automat (liniar, pe grupe), cu raportul de amortizare pe mijloace fixe și granturi.
+
+### M2c. Schimbul cu banca (fișiere)
+- F2c.1 **Import extras bancar** din fișierele pe care le dau băncile: **TXT, DBF, DBO** (și XML/CSV, dacă banca le oferă).
+- F2c.2 **Export ordine de plată** în formatul băncii, pentru încărcare în sistemul bancar.
+- F2c.3 Pentru fiecare bancă — un **profil de format** (codificare, separatori, maparea câmpurilor), configurat o dată; profiluri gata pentru băncile folosite de organizație.
+- F2c.4 La import: recunoașterea contrapartidei după IDNO/IBAN, propunerea contului și a grantului, detectarea rândurilor deja importate (fără dubluri), crearea documentelor *Încasare pe cont* / *Plată din cont* ca ciorne.
+- F2c.5 Jurnalul importurilor (fișier, bancă, câte rânduri, câte create / ignorate / cu erori).
+
+### M2d. e-Factura (SFS) prin API
+- F2d.1 Descărcarea automată a facturilor electronice primite din e-Factura → documente *Factură primită* completate (fără OCR).
+- F2d.2 Trimiterea facturilor emise în e-Factura și urmărirea statutului (trimisă / semnată / acceptată / respinsă).
+- F2d.3 Legătura documentului cu ID-ul din e-Factura; arhiva e-Factura în aplicație.
+- F2d.4 Accesul la API se face cu datele/certificatul organizației, păstrate criptat; condițiile de conectare se clarifică cu SFS.
+
+### M2e. Sursa documentelor: Google Drive sau folder local
+- F2e.1 Fiecare organizație alege unde stau documentele originale: **Google Drive** (contul organizației sau al utilizatorului, prin OAuth) sau **folder local**.
+- F2e.2 Folder local: (a) un folder de pe server / rețea, montat în Docker, sau (b) un folder de pe calculatorul utilizatorului, sincronizat printr-un **agent mic de sincronizare** instalat pe calculator (urcă fișierele noi și primește structura de foldere creată de aplicație).
+- F2e.3 Restul aplicației lucrează la fel indiferent de sursă (stratul `storage` comun).
+
 ### M2a. Plăți către persoane fizice (nu salarii)
 - F2a.1 Document „Plată către persoană fizică” pentru chirie (FOL), arendă teren agricol (PLs), servicii/contract civil (PL), donații (DON pf), dobânzi, royalty.
 - F2a.2 Tipul plății determină codul sursei de venit IPC21 și cota de reținere (din `tax_rates`).
@@ -89,7 +114,14 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 ### M6. Granturi și rapoarte pentru donatori
 - F6.1 Donatori, granturi, linii de buget, alocarea cheltuielilor (din documente și salarii).
 - F6.2 Execuția bugetului: planificat / cheltuit / rest, alertă la depășire.
-- F6.3 Încărcarea șablonului Excel al donatorului, maparea celulelor (asistată de AI), generarea raportului completat + lista documentelor justificative cu linkuri Drive.
+- F6.3 Încărcarea **oricărui** șablon Excel al donatorului (fiecare donator are alt șablon); AI-ul recunoaște structura (foi, tabele, rânduri pe linii de buget, celule de total) și propune maparea; contabilul o confirmă o dată, apoi șablonul se reutilizează.
+- F6.4 **Cerințele donatorului**: pentru fiecare donator/grant contabilul scrie, în cuvinte simple, ce documente justificative cere donatorul (ex. „pentru deplasări: ordin, bilete, decont, raport de deplasare; pentru salarii: contract, foaie de pontaj, stat de plată”). AI-ul transformă instrucțiunea în reguli și le aplică.
+- F6.5 **Pachetul de raportare** — un singur buton generează:
+  - folderul `Rapoarte / <Donator> / <Grant> / <Perioada>`;
+  - raportul Excel completat în șablonul donatorului;
+  - subfoldere **pe linii de buget**, cu copiile/linkurile documentelor justificative selectate de AI după cerințele donatorului;
+  - o listă de verificare: ce documente lipsesc pentru fiecare cheltuială.
+- F6.6 Operatorii pot lucra și manual în structura de foldere a donatorului (să adauge documente pe linii de buget); aplicația le recunoaște și le leagă de cheltuieli.
 
 ### M6a. Rapoarte fiscale și statistice
 - F6a.1 **IPC21** (lunar, SFS) — darea de seamă privind reținerea impozitului pe venit, a contribuțiilor CNAS și a primelor CNAM, completată automat din salarizare, cu anexele pe persoane și pe tip de venit (CIM / contract civil separat).
@@ -99,6 +131,14 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 - F6a.4 Fiecare raport: completare automată → verificare și corectare manuală a celulelor → salvare versiune → export în formatul acceptat de **e-Cabinet SFS** / portalul BNS (XML/XLS) și tipărire PDF.
 - F6a.5 Formularele de raport sunt descrise ca **șabloane cu versiune și perioadă de valabilitate** (când SFS/BNS schimbă formularul, se adaugă o versiune nouă; rapoartele vechi rămân pe forma veche).
 - F6a.6 Descifrarea fiecărei cifre: clic pe celulă → lista înregistrărilor/documentelor din care provine.
+
+### M8. Asistentul AI
+- F8.1 **Chat** cu asistentul, disponibil din orice ecran (panou lateral); știe pe ce ecran/document este utilizatorul.
+- F8.2 Poate: explica o operațiune, găsi documente și sume, propune înregistrări contabile, completa un document-ciornă, pregăti un raport, crea pachetul pentru donator, căuta **pe internet** (legislație, practici contabile, cazuri excepționale) și da sursele (link).
+- F8.3 **Nimic nu se aplică fără confirmare**: asistentul creează *propuneri* (document-ciornă, înregistrare propusă, modificare de setare) pe care utilizatorul le acceptă sau le respinge. Asistentul are exact drepturile utilizatorului care îl folosește.
+- F8.4 **Personalizarea interfeței prin chat**: utilizatorul scrie „mută butonul X lângă Y”, „redenumește coloana”, „ascunde câmpul”, „pune implicit contul 713” — asistentul modifică **setările de interfață** (nu codul): textul etichetelor, ordinea și vizibilitatea câmpurilor/coloanelor/butoanelor, valori implicite. Modificarea se vede imediat, poate fi anulată, are istoric; la nivel de organizație o aprobă contabilul-șef.
+- F8.5 Memorie de organizație: regulile explicate asistentului („la noi chiria se pune pe linia 3.4”) se salvează și se folosesc data viitoare; pot fi văzute și șterse.
+- F8.6 Toate conversațiile și acțiunile asistentului sunt în jurnalul de audit.
 
 ### M7. Migrarea datelor din 1C
 - F7.1 Import din 1C prin **interfața OData standard** a bazei 1C sau prin export XML (prelucrarea universală de export/import date XML).
@@ -130,7 +170,10 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 | Bază de date | PostgreSQL 16 |
 | Cozi | Redis + worker |
 | OCR / AI | Azure Document Intelligence + LLM (Claude) |
-| Fișiere | Google Drive API |
+| Fișiere | Google Drive API sau folder local (montat în Docker / agent de sincronizare) |
+| Bancă | parsere TXT / DBF (`dbfread`) / DBO pe profiluri de format |
+| e-Factura | client API SFS |
+| Asistent AI | Claude API cu instrumente (tool use): acces la API-ul aplicației cu drepturile utilizatorului + căutare web |
 | Excel / PDF | openpyxl, WeasyPrint (formulare tipărite) |
 | Import 1C | OData REST / XML |
 | Infrastructură | Docker Compose (nginx, api, worker, postgres, redis), GitHub + GitHub Actions |
@@ -146,8 +189,10 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 | E5 | Migrarea din 1C + reconcilierea balanței |
 | E6 | Documentele bancă/casă/achiziții/vânzări cu reguli de înregistrare |
 | E7 | Salarizare CIM / contract civil + cote cu valabilitate |
-| E8 | Drive + OCR/AI pentru facturi și ordine de plată |
-| E9 | Granturi, execuția bugetului, rapoarte donatori |
+| E8 | Drive / folder local + OCR/AI pentru facturi și ordine de plată; schimb cu banca (TXT/DBF/DBO); e-Factura |
+| E8a | Mijloace fixe din factură + asistentul „Închiderea lunii” |
+| E8b | Asistentul AI (chat, propuneri, căutare pe internet, personalizarea interfeței) |
+| E9 | Granturi, execuția bugetului, rapoarte donatori pe șabloane oricare + pachetul de documente pe linii de buget |
 | E10 | Rapoarte fiscale IPC21, 5-CON, ONG17 + calendarul raportărilor |
 | E11 | Monitor legislativ, testare, documentare, susținere |
 
@@ -162,6 +207,10 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 7. Un utilizator nu vede datele organizațiilor neatribuite (test automat).
 8. Documentele dintr-o perioadă închisă nu pot fi modificate de un contabil obișnuit.
 9. IPC21, 5-CON și ONG17 generate pentru o perioadă de test coincid cifră cu cifră cu cele generate de 1C pentru aceeași perioadă.
+10. Un extras bancar TXT/DBF importat de două ori nu creează plăți dublate.
+11. O factură cu un mijloc fix, OMVSD și materiale se introduce o singură dată; mijlocul fix apare în fișa mijloacelor fixe și se amortizează la închiderea lunii.
+12. Pentru un donator cu șablon Excel nou și cerințe scrise în cuvinte, aplicația generează raportul completat și folderele pe linii de buget cu documentele cerute.
+13. O cerere în chat „mută butonul Dt/Kt la începutul barei” schimbă interfața imediat și poate fi anulată.
 
 ## 9. În afara scopului (versiunea 1)
 

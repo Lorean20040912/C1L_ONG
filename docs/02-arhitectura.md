@@ -1,127 +1,196 @@
 # Arhitectura sistemului
 
-## Decizia: sistem web propriu care înlocuiește 1C, cu aceeași logică de lucru
+## 1. Deciziile principale
 
-1C rămâne doar **sursa datelor pentru migrare** și referința pentru logica contabilă. După perioada de lucru în paralel, toți contabilii lucrează în aplicația web.
+| # | Decizie | De ce |
+|---|---------|-------|
+| D1 | **Sistem web propriu care înlocuiește 1C**, cu aceeași paradigmă de lucru (secțiuni → jurnale → formulare → Dt/Kt → rapoarte) | contabilii nu se reinstruiesc; scăpăm de licențe per utilizator și de erorile configurației |
+| D2 | **Monolit modular** (un backend FastAPI cu module clare) + **worker** pentru sarcini lungi, nu microservicii | o echipă mică, un server; mai simplu de instalat, testat și explicat în teză |
+| D3 | **PostgreSQL** ca singura sursă de adevăr; toate rapoartele se calculează din înregistrări | integritate contabilă, tranzacții, audit |
+| D4 | **Formulare generate din metadate** (JSON) + **straturi de personalizare** peste metadate | documente noi fără formulare desenate de mână; asistentul AI poate schimba interfața fără a atinge codul |
+| D5 | **AI doar propune, omul confirmă** | contabilitatea nu tolerează „halucinații”; răspunderea rămâne la contabil |
+| D6 | **Stratul `storage`** cu adaptoare: Google Drive / folder local | organizația alege unde stau originalele; restul aplicației nu știe diferența |
+| D7 | **Adaptoare de schimb**: bănci (TXT/DBF/DBO), e-Factura (API), 1C (migrare) | fiecare sistem extern izolat într-un modul, testat separat |
+| D8 | **Docker Compose** pe serverul organizației | instalare și actualizare cu o comandă; datele rămân la organizație |
 
-Ce preluăm din 1C:
-- **paradigma de interfață**: secțiuni → liste (jurnale) → formulare → înregistrări Dt/Kt → rapoarte;
-- **modelul de date**: cataloage, documente, registre (contabil, salarii), planul de conturi cu subconto;
-- **regulile de calcul și de înregistrare** (ce înregistrări generează fiecare document);
-- **datele**: cataloage, solduri, istoric.
+1C rămâne doar **sursa datelor pentru migrare** și referința pentru logica contabilă (vezi [03-analiza-configuratiei-1c.md](03-analiza-configuratiei-1c.md)).
 
-Ce **nu** copiem: codul sursă, imaginile și resursele 1C (proprietate 1C/furnizor). Reconstruim logica pe baza analizei și o scriem din nou în Python.
-
-## Componente (Docker Compose pe server)
+## 2. Componente
 
 ```
- Contabili (browser)                                   Google Drive   Azure OCR / LLM   legis.md, BNM
-        │ HTTPS                                              ▲              ▲                ▲
- ┌──────▼──────┐   ┌──────────────────────┐   ┌──────────────┴──────────────┴────────────────┴─┐
- │   nginx     │──▶│  api  (FastAPI)       │──▶│ worker: OCR, AI, import 1C, rapoarte, curs BNM │
- │ + frontend  │   │  auth · cataloage ·   │   └──────────────────────┬─────────────────────────┘
- │ (React)     │   │  documente · posting ·│          ┌───────────────┘
- └─────────────┘   │  rapoarte · salarii   │   ┌──────▼──────┐   ┌──────────────┐
-                   └──────────┬────────────┘   │   redis     │   │ 1C (doar la  │
-                              │                └─────────────┘   │ migrare,     │
-                       ┌──────▼──────┐                           │ prin OData)  │
-                       │ postgres    │◀── backup zilnic          └──────────────┘
-                       └─────────────┘
+                    ┌──────────────────────────── Browser (React) ─────────────────────────────┐
+ Contabili ───────▶ │ AppShell tip 1C · Liste · Formulare · Rapoarte · Panou „Asistent AI” (chat) │
+                    └───────────────────────────────┬──────────────────────────────────────────┘
+                                                    │ HTTPS (JWT + 2FA)
+┌───────────────────────────────────────────────────▼───────────────────────────────────────────────┐
+│ nginx ──▶ API (FastAPI, monolit modular)                                                           │
+│   auth · audit · metadata+ui_overrides · catalogs · documents · posting · payroll · fixed_assets   │
+│   month_close · grants · reports · regulated (IPC21/5-CON/ONG17) · donor_reports · assistant       │
+│   adaptoare: storage (Drive | local) · bank (TXT/DBF/DBO) · efactura (API SFS) · onec_import        │
+└──────┬─────────────────────────────┬───────────────────────────────────────┬──────────────────────┘
+       │                             │ sarcini în coadă                      │
+┌──────▼──────┐               ┌──────▼──────┐     ┌──────────────────────────▼───────────────────────┐
+│ PostgreSQL  │◀──────────────│   Redis     │────▶│ Worker: OCR · AI · import bancă · e-Factura sync  │
+│ date+audit  │  backup zilnic└─────────────┘     │ pachete donatori · rapoarte mari · monitor legi  │
+└─────────────┘                                   └──┬────────┬──────────┬──────────┬──────────┬─────┘
+                                                     ▼        ▼          ▼          ▼          ▼
+                                              Google Drive  Folder   e-Factura   Claude API  legis.md
+                                              (OAuth)       local*   (SFS)       + web search BNM (curs)
+
+ * folder local = director montat în containere (server / rețea) SAU agentul de sincronizare de pe calculatorul utilizatorului
 ```
 
-## Nucleul contabil (cum funcționează „înregistrarea” ca în 1C)
+## 3. Nucleul contabil — „înregistrarea” ca în 1C
 
-1. Contabilul completează documentul (ex. *Factură primită*) și apasă **Înregistrează**.
-2. Backend-ul, într-o **singură tranzacție**:
-   - verifică perioada (nu e închisă), câmpurile obligatorii;
-   - apelează **regula de înregistrare** a tipului de document → generează rânduri în `entry_lines` (Dt, Kt, sumă, subconto, grant, linie de buget);
-   - verifică Dt = Kt;
-   - setează `is_posted = true` și scrie în `audit_log`.
-3. **Dt/Kt** afișează înregistrările generate; **Anulare înregistrare** le șterge.
-4. Rapoartele (OSV, fișa contului) se calculează din `entry_lines` + soldurile inițiale.
+1. Contabilul completează documentul și apasă **Înregistrează**.
+2. Într-o **singură tranzacție**: verificarea perioadei (neînchisă) și a câmpurilor → **regula de înregistrare** a tipului de document generează `entry_lines` (Dt, Kt, sumă, subconto, grant, linie de buget, articol 5-CON, tip activitate ONG17) → verificarea Dt = Kt → `is_posted = true` → `audit_log`.
+3. **Dt/Kt** arată înregistrările; **Anulare înregistrare** le șterge.
+4. Toate rapoartele (OSV, IPC21, 5-CON, ONG17, execuția bugetului, raportul donatorului) se calculează din `entry_lines`, `payroll_entries`, `individual_payments`.
 
-Regulile de înregistrare sunt cod Python pe tip de document (testat cu teste unitare), cu conturile implicite configurabile în setări — echivalentul modulelor de obiect din 1C.
+## 4. Mijloace fixe și închiderea lunii
 
-## Interfața de tip 1C 8.3
+**Problema în 1C:** mijlocul fix cere un document separat („Принятие к учету ОС”), iar o factură care conține și mijloc fix, și OMVSD, și materiale trebuie „spartă” în mai multe documente.
 
-- **Panou de secțiuni** stânga, **panou de navigare** al secțiunii (liste de documente, cataloage, rapoarte).
-- **Tab-uri** pentru formularele deschise (mai multe documente deschise simultan).
-- **Liste**: tabel virtualizat (mii de rânduri fără încetinire), iconiță înregistrat/neînregistrat/marcat pentru ștergere, filtru perioadă, căutare.
-- **Formular document**: antet, tabel de rânduri editabil inline, subsol cu totaluri, bara de butoane standard.
-- **Comenzi rapide**: Insert (rând nou), F2 (editare), F8 (copiere), Ctrl+Enter (înregistrează și închide), Ctrl+S.
-- Formularele se generează din **metadate** (descrierea câmpurilor fiecărui document), ca în 1C — un document nou se adaugă fără a scrie un formular de la zero.
+**La noi:**
+- rândul facturii are `line_kind` = `fixed_asset | low_value_item | material | goods | service`;
+- regula de înregistrare a facturii, pentru `fixed_asset`, **creează fișa** în `fixed_assets` (legată de rând) și, dacă e bifat „pus în funcțiune”, începe amortizarea de luna următoare;
+- `month_close` este un **asistent cu pași**: fiecare pas (amortizare, salarii, repartizare pe granturi, diferențe de curs, venituri din mijloace cu destinație specială, închiderea conturilor, verificări) are *previzualizare → executare → anulare*; rezultatul e un document `month_close_runs` cu înregistrările lui — se vede clar ce a făcut închiderea.
 
-## Migrarea din 1C
+## 5. Sursa documentelor (stratul `storage`)
 
-| Pas | Detalii |
-|-----|---------|
-| 1. Analiza configurației | export configurație în fișiere XML (Configurator) → lista cataloagelor, documentelor, registrelor, câmpurilor → maparea către tabelele noastre |
-| 2. Conectare la date | interfața **OData standard** a bazei 1C (REST, JSON) sau export XML |
-| 3. Import | ordinea: plan de conturi → cataloage → solduri inițiale → documente → înregistrări; GUID-ul 1C păstrat în `onec_id_map` |
-| 4. Reconciliere | balanța de verificare aplicație vs 1C pe fiecare cont; diferențele în raport |
-| 5. Lucru în paralel | 1–2 luni, apoi 1C trece în mod doar citire |
+```python
+class StorageProvider(Protocol):
+    def list(self, folder) -> list[FileInfo]: ...
+    def read(self, file_id) -> bytes: ...
+    def write(self, folder, name, data) -> FileInfo: ...
+    def make_folder(self, path) -> FolderInfo: ...
+    def link(self, file_id) -> str: ...
+```
 
-## Salarizare CIM / contract civil
+| Adaptor | Cum funcționează |
+|---------|------------------|
+| `GoogleDriveStorage` | OAuth 2.0, scope minim (doar folderele aplicației); fișierele rămân în Drive-ul organizației/utilizatorului |
+| `LocalFolderStorage` | director montat în containere (`/data/docs`) — server sau share de rețea |
+| `AgentStorage` | **agent de sincronizare** pe calculatorul utilizatorului (aplicație mică, ex. Python/Tauri): urmărește un folder ales, urcă fișierele noi prin API cu un token personal, creează local folderele cerute de aplicație (ex. pachetul donatorului) |
 
-`contracts.type` (`cim`/`civil`); calculul în `payroll_entries` se face **pe contract**. Scutirea personală se aplică doar dacă `type = cim` și `is_main_job = true`. Cotele se iau din `tax_rates` valabile la data calculului.
+Fiecare document are `storage_connection_id` + `file_id` + `sha256` → dublurile se recunosc indiferent de sursă.
 
-## Cote de impozit și legislație
+## 6. Schimbul cu banca (fișiere TXT / DBF / DBO)
 
-Cotele au `valid_from`/`valid_to` și temei legal. Worker-ul verifică sursele oficiale, AI-ul propune modificări în `legal_updates`, contabilul-șef aprobă → versiune nouă în `tax_rates`.
+- Un **profil de format** pe bancă (`bank_formats`): tipul fișierului, codificarea (CP1251/UTF-8/CP866), separatori sau lățimi fixe, maparea câmpurilor (dată, sumă, IBAN, IDNO, destinație, nr. document), direcția (import extras / export ordine).
+- Parsere: `TxtParser` (delimitat sau lățime fixă), `DbfParser` (biblioteca `dbfread`), `DboParser` (formatul DBO al băncii — de configurat după fișierele-exemplu), `XmlParser`.
+- Import: fișier → rânduri normalizate → căutare contrapartidă (IDNO/IBAN) → propunere cont + grant (după istoric / AI) → documente-ciornă → contabilul confirmă.
+- **Idempotență**: fiecare rând primește o cheie (bancă + cont + dată + nr. document + sumă); un rând deja importat nu se mai creează.
+- Export: ordinele de plată selectate → fișierul în formatul băncii → contabilul îl încarcă în sistemul băncii.
 
-## Securitate
+## 7. e-Factura
 
-- Argon2 + 2FA TOTP; sesiuni cu expirare; RBAC pe organizație.
-- Fiecare interogare filtrată după `organization_id` (test automat).
-- IDNP/IBAN criptate; secretele doar în `.env` pe server, nu în GitHub.
-- `audit_log` pentru tot; perioadele închise protejate.
-- Backup zilnic `pg_dump` + păstrare 30 zile; originalele documentelor pe Drive.
+- `efactura` = client API + sincronizare periodică în worker.
+- Primite: descărcare → `invoices` completate direct din XML (fără OCR) → legate de contrapartidă și contract.
+- Emise: trimitere → urmărirea statutului în `efactura_messages`.
+- Datele de acces / certificatul — criptate, doar pe server. Condițiile tehnice de acces se clarifică cu SFS înainte de etapa E8.
 
-## Modulele backend (FastAPI)
+## 8. Rapoarte pentru donatori și pachetul de documente
+
+```
+Rapoarte/
+└── Fundația Soros/
+    └── SOR-2026-01/
+        └── 2026-T3/
+            ├── Raport financiar SOR-2026-01 T3.xlsx        ← șablonul donatorului, completat
+            ├── Lista de verificare (documente lipsă).xlsx
+            ├── 1.1 Salarii personal proiect/   contracte, pontaje, state de plată
+            ├── 2.1 Echipament/                 facturi, acte de primire, ordine de plată
+            └── 3.1 Transport și deplasări/     ordine de deplasare, bilete, deconturi
+```
+
+1. **Șablonul**: contabilul încarcă Excel-ul donatorului → AI-ul citește foile/celulele și propune maparea (`report_templates.mapping`: celulă ↔ linie de buget / perioadă / tip valoare) → contabilul confirmă o dată.
+2. **Cerințele**: contabilul scrie în cuvinte ce documente cere donatorul → AI-ul le transformă în reguli structurate (`donor_requirements.rules`: pentru ce tip de cheltuială ce tipuri de documente) → contabilul le vede și le corectează.
+3. **Generarea pachetului** (în worker): calculează cifrele din `entry_lines` → completează Excel-ul (openpyxl, păstrând formatarea donatorului) → creează folderele prin `storage` → pentru fiecare cheltuială pune documentele cerute (copie sau scurtătură) → lista documentelor lipsă.
+4. Operatorii pot adăuga manual documente în folderele pe linii de buget; la sincronizare aplicația le recunoaște și le leagă de cheltuieli.
+
+## 9. Asistentul AI
+
+```
+ Chat (panou lateral) ──▶ assistant (API) ──▶ Claude API (tool use)
+                                │                    │ apelează instrumente
+                                │◀───────────────────┘
+                                ▼
+          Instrumente (cu drepturile utilizatorului curent):
+          search_documents · get_report · explain_entry · draft_document · propose_entries
+          build_donor_package · web_search · get_ui_layout · propose_ui_change · remember_rule
+                                ▼
+          ai_actions (propuneri) ──▶ utilizatorul: Aplică / Respinge ──▶ audit_log
+```
+
+- **Contextul**: ecranul curent, documentul deschis, organizația, regulile memorate ale organizației (`ai_memory`).
+- **Siguranță**: instrumentele de scriere creează doar **propuneri** (`ai_actions` cu statut `pending`); aplicarea o face utilizatorul. Asistentul nu poate închide perioade, șterge date sau schimba drepturi.
+- **Căutare pe internet**: pentru legislație și cazuri neobișnuite; răspunsul conține sursele (linkuri); o cotă nouă găsită pe internet devine propunere în `legal_updates`, nu se aplică singură.
+- **Date personale**: către AI se trimite minimul necesar; IDNP și IBAN se maschează în prompturi; organizația poate dezactiva trimiterea scanurilor.
+
+### Personalizarea interfeței prin chat
+
+Interfața se construiește din: **metadate de bază** (în cod) + **override-uri de organizație** + **override-uri de utilizator** (`ui_overrides`).
+
+| Cererea utilizatorului | Ce schimbă asistentul |
+|------------------------|------------------------|
+| „Mută butonul Dt/Kt la început” | ordinea comenzilor în bara formularului |
+| „Scrie «Proiect» în loc de «Grant»” | eticheta câmpului |
+| „Ascunde coloana Subdiviziune” | vizibilitatea coloanei în listă |
+| „La chirie pune implicit articolul 3.4” | valoare implicită |
+
+Fiecare override are versiune, autor (utilizator / asistent), dată și poate fi anulat; cele de organizație cer aprobarea contabilului-șef. **Codul aplicației nu se modifică la runtime** — astfel nicio cerere din chat nu poate strica logica contabilă sau securitatea.
+
+## 10. Securitate
+
+- Argon2 + 2FA TOTP; JWT acces 15 min + refresh rotativ; RBAC pe organizație; filtrare obligatorie după `organization_id` (test automat).
+- IDNP, IBAN, tokenuri Drive, certificate e-Factura, chei API — criptate în BD sau doar în `.env` pe server; nimic în GitHub.
+- HTTPS obligatoriu (inclusiv agentul de sincronizare); tokenurile agentului se pot revoca.
+- `audit_log` pentru tot, inclusiv acțiunile asistentului; perioadele închise protejate.
+- Backup zilnic `pg_dump`, păstrat 30 de zile; originalele documentelor rămân în Drive / folder.
+
+## 11. Modulele backend
 
 | Modul | Responsabilitate | Tabele principale |
 |-------|------------------|-------------------|
-| `auth` | login, 2FA, sesiuni, roluri pe organizație | users, organization_members |
-| `audit` | jurnalul modificărilor (middleware pe toate scrierile) | audit_log |
-| `metadata` | descrierile documentelor/cataloagelor pentru formularele generice | (fișiere JSON în cod) |
-| `catalogs` | CRUD generic pentru cataloage | counterparties, persons, accounts, departments, cost_items… |
-| `documents` | CRUD generic pentru documente, numerotare, blocare optimistă (`version`) | documents, invoices, payment_orders, individual_payments… |
-| `posting` | **regulile de înregistrare** (câte o clasă pe tip de document) → `entry_lines`; anulare; perioade închise | entry_lines, accounting_periods |
-| `payroll` | calcul pe contract, scutiri, CNAS/CNAM, coduri de venit | contracts, payroll_entries |
+| `auth`, `audit` | login, 2FA, roluri; jurnal | users, organization_members, audit_log |
+| `metadata` | descrieri de formulare + override-uri | ui_overrides |
+| `catalogs`, `documents` | CRUD generic, numerotare, blocare optimistă | counterparties, persons, documents, invoices… |
+| `posting` | regulile de înregistrare; perioade | entry_lines, accounting_periods |
+| `fixed_assets`, `month_close` | fișe MF din factură, amortizare, închiderea lunii | fixed_assets, month_close_runs |
+| `payroll`, `individual_payments` | salarii pe contract; plăți către persoane fizice | contracts, payroll_entries, individual_payments |
 | `taxes` | cote cu valabilitate, propuneri legislative | tax_rates, legal_updates |
-| `grants` | proiecte, donatori, linii de buget, repartizare | grants, grant_donors, budget_lines, allocations |
-| `reports` | OSV, fișa contului, execuția bugetului | (citește entry_lines) |
-| `regulated` | IPC21, 5-CON, ONG17: calcul → verificare → XML/PDF; calendarul raportărilor | report_forms, tax_reports, reporting_calendar |
-| `donor_reports` | completarea șabloanelor Excel ale donatorilor | report_templates, generated_reports |
-| `drive` + `ai` | sincronizare Drive, OCR, extragere, propuneri de alocare (în worker) | documents, document_extractions |
-| `onec_import` | citirea bazei 1C, maparea GUID-urilor, reconciliere | onec_import_runs, onec_id_map |
+| `grants`, `donor_reports` | granturi, bugete, șabloane, cerințe, pachete | grants, budget_lines, report_templates, donor_requirements, report_packages |
+| `regulated`, `reports` | IPC21, 5-CON, ONG17, OSV… | report_forms, tax_reports, reporting_calendar |
+| `storage`, `bank`, `efactura`, `onec_import` | adaptoarele externe | storage_connections, bank_formats, bank_imports, efactura_messages, onec_id_map |
+| `assistant` | chat, instrumente, propuneri, memorie | ai_conversations, ai_messages, ai_actions, ai_memory |
 
-Regula de aur: **nicio sumă din rapoarte nu se introduce de mână** — totul vine din `entry_lines`, `payroll_entries` și `individual_payments`; corecțiile manuale într-un raport se salvează separat (`tax_reports.manual_overrides`) și sunt vizibile.
-
-## Modulele frontend (React)
+## 12. Modulele frontend
 
 | Componentă | Rol |
 |------------|-----|
-| `AppShell` | bara de sus, panoul de secțiuni, filele, tastele globale |
-| `SectionPanel` | linkurile secțiunii (din metadate) |
-| `ListForm` | jurnal generic: bara de comenzi, filtre, tabel virtualizat, statut ✓/○/✕ |
-| `ObjectForm` | formular generic: antet + secțiuni tabelare + subsol, din metadate |
-| `RefField`, `DateField`, `MoneyField` | câmpuri cu selecție din catalog, dată, sumă (format „1 234,56”) |
-| `PostingView` | fereastra Dt/Kt |
-| `ScanReview` | scanul + câmpurile extrase de AI, cu nivel de încredere |
-| `ReportView` | parametri, tabel, descifrarea celulelor, export |
-| `HomePage` | calendarul raportărilor, documente de verificat, execuția bugetelor |
+| `AppShell` | bara de sus, secțiuni, file, taste globale |
+| `ListForm`, `ObjectForm` | liste și formulare generice din metadate + override-uri |
+| `RefField`, `MoneyField`, `DateField` | câmpuri tip 1C (selecție din catalog, „1 234,56”) |
+| `PostingView` | Dt/Kt |
+| `ScanReview` | scan + câmpuri extrase cu încredere |
+| `ReportView` | parametri, tabel, descifrare, export |
+| `BankImportWizard` | alegerea fișierului și a profilului → previzualizare → creare documente |
+| `MonthCloseWizard` | pașii închiderii lunii cu previzualizare |
+| `DonorPackageWizard` | șablon → cerințe → pachet → lista documentelor lipsă |
+| `AssistantPanel` | chat-ul, propunerile cu butoane Aplică / Respinge |
 
-Prototipul vizual al acestor componente: [`design/prototip.html`](../design/prototip.html); regulile de design: [08-design-interfata.md](08-design-interfata.md).
+Prototipul vizual: [`design/prototip.html`](../design/prototip.html); regulile de design: [08-design-interfata.md](08-design-interfata.md).
 
-## Structura repository-ului (planificată)
+## 13. Structura repository-ului (planificată)
 
 ```
 proeict/
-├── docs/              ToR, arhitectură, analiza configurației 1C
+├── docs/              ToR, arhitectură, analiza 1C, specificațiile rapoartelor, design
 ├── database/          schema.dbml (dbdiagram.io)
-├── backend/           FastAPI: app/{catalogs,documents,posting,payroll,reports,onec_import}, alembic/, tests/
-├── frontend/          React + Vite: shell tip 1C, liste, formulare din metadate
-├── onec-analysis/     exportul configurației 1C (NU se pune în GitHub public)
+├── design/            prototipul HTML
+├── backend/           FastAPI: app/<modul>/, alembic/, tests/
+├── frontend/          React + Vite
+├── sync-agent/        agentul de sincronizare pentru folderul local
 └── docker-compose.yml
 ```
