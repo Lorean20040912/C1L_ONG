@@ -550,6 +550,38 @@ Table accounts {
   }
 }
 
+Table accounting_policies {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  valid_from date [not null]
+  grant_receivable_account_id uuid [ref: > accounts.id, note: '234.4 sau 235 — creanțe privind mijloacele cu destinație specială']
+  grant_recognition varchar [default: 'on_signing', note: 'on_signing / on_receipt (contract neautentificat)']
+  stock_to_deferred_income varchar [default: 'unused_only', note: 'all / unused_only — stocuri și avansuri la 535']
+  fa_valuation_method varchar
+  settings jsonb [note: 'alte opțiuni ale politicii contabile']
+  approved_by uuid [ref: > users.id]
+  indexes {
+    (organization_id, valid_from) [unique]
+  }
+}
+
+Table posting_rules {
+  id uuid [pk]
+  organization_id uuid [ref: > organizations.id, note: 'null = regulă standard; altfel corecția organizației']
+  document_type varchar [not null, note: 'ex. invoice, grant_income, payroll, month_close.depreciation']
+  operation varchar [not null, note: 'ex. expense, stock_distribution, fixed_asset_fund, fx_difference']
+  conditions jsonb [note: '{funding: special_purpose|unrestricted|economic, line_kind, currency...}']
+  debit_account varchar [not null]
+  credit_account varchar [not null]
+  analytics jsonb [note: 'ce subconto / dimensiuni se completează']
+  source_ref varchar [not null, note: 'ex. IM188; ART sit.3; SEM — obligatoriu']
+  valid_from date [not null]
+  valid_to date
+  version int [default: 1]
+  changed_by uuid [ref: > users.id]
+  change_reason text
+}
+
 Table departments {
   id uuid [pk]
   organization_id uuid [not null, ref: > organizations.id]

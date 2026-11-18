@@ -26,6 +26,7 @@ Proiect pentru examenul **Programare Web 2** și teza de licență.
 | [docs/08-design-interfata.md](docs/08-design-interfata.md) | Designul interfeței |
 | [docs/09-schimb-banci.md](docs/09-schimb-banci.md) | Formatele băncilor, exportul ordinelor de plată, plata cumulată a impozitelor |
 | [docs/10-strategie-produs.md](docs/10-strategie-produs.md) | Aplicație nouă vs extensie 1C, unde stau datele, stabilitate |
+| [docs/11-reguli-contabile-ong.md](docs/11-reguli-contabile-ong.md) | Regulile contabile ONG și formulele Dt/Kt, cu surse legislative |
 | [design/prototip.html](design/prototip.html) | Prototip clicabil (se deschide în browser) |
 | [database/schema.dbml](database/schema.dbml) | Schema BD — se lipește în [dbdiagram.io](https://dbdiagram.io/d) |
 

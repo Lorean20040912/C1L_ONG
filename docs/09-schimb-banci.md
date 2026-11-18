@@ -48,7 +48,28 @@ Câmpuri normalizate la import: data, nr. document, debit/credit, IBAN-ul nostru
 | 12 | `DE` | **210** | destinația plății | obligatoriu |
 | 13 | `URGENT` | 1 | `U` urgent / `N` normal | obligatoriu |
 
-Pentru celelalte bănci se completează profilul după documentația lor (FinComBank — documentația pe care o are contabilul; MAIB, Moldindconbank, Victoriabank — de cerut la suportul pentru clienți corporativi dacă nu e publică).
+### Formatele de export găsite în configurația 1C (prelucrarea de schimb cu banca)
+
+Configurația 1C ONG are câte o funcție de export pentru fiecare bancă. Le folosim ca **referință verificată în practică** (aceste fișiere sunt acceptate de bănci astăzi):
+
+| Bancă (setarea „Programa” din 1C) | Format | Structura |
+|---|---|---|
+| **MAIB** („DBF MAIB”, „DBF MAIB 2024”, „TXT MAIB”) | DBF | câmpuri: `Data D`, `NDOC S10`, `CCL S30`, `CCOR S30`, `CCORT S30` (cont trezorerial), `CFC S18`, `CFCCOR S18`, `CBC N3`, `DENC S55` (prefix `(R) `), `DENCT S50`, `SUMN N15.2`, `TD N2` (=8), `DE1 S220`, `DE2 S220`, `DE3`, `DE4`, `BIC S220`, `URGENT S1` (U/N). **Primul rând = totalul lotului** în `SUMN`, apoi câte un rând pe ordin. Destinația: primele 250 de caractere în `DE1`, restul în `DE2`. Pentru conturi în valută — funcție separată |
+| MAIB valută | DBF | variantă a celei de mai sus pentru plăți în valută |
+| **FinComBank** („DBF FinCom”, „XML FinComBank”) | XML `ROWDATA/ROW` cu atribute | `BIC_A, ACCOUNTNO, BIC_B, CORRACCOUNTNO, CORRTREZACCOUNTNO, TRANSACTIONCODE` (101 = plată la buget, 001 = obișnuită), `DOCUMENTNO, DOCUMENTDATE (yyMMdd), AMOUNT, CORRFISCALCODE, CORRSNAME, DETAILSOFPAYMENT, CORRRESIDENCY (R/N), PRIORITY (U/N), SUBDIVISIONCODE, CORRSUBDIVISIONCODE, RESIDENCY, CONTRAGENTSNAME, FISCALCODE, TREZACCOUNTNO, VALUEDATE, STATENAME, ADDDETAILSOFPAYMENT, IBAN_A, IBAN_B` |
+| **OTP Bank** („DBF OTP Bank”, „DBF OTP Bank 2019”) | DBF | structura OTP de mai sus (`DATAV … URGENT`) |
+| **Victoriabank, Moldindconbank, Unibank, Energbank, Banca Socială, ProCredit** („Система BS-Client”) | TXT **1CClientBankExchange(V:M.1)** | antet `BEGINDATE, ENDDATE, SECTIONACCOUNTSTART, DATE, ACCOUNT, STARTREST, INCOME, OUTCOME, STOPREST, CURRCODE, SECTIONACCOUNTSTOP`, apoi pe fiecare ordin `DocStart … DocEnd` cu `DOCID, DOCUMENTNUMBER, DOCUMENTDATE, DATEWRITTEN, PAYERACCOUNT, PAYERFCODE, CODEDEP, PAYERBANKBIC, PAYER, PAYERBANK, RECEIVER, RECEIVERFCODE, RECEIVERACCOUNT, RECEIVERBANKBIC, RECEIVERBANK, RESIDENCE, AMOUNT, GROUND, OPERTYPE, TRANSACTIONCODE, TRANSFERTYPE, DEBETSUBACCOUNT, CREDITSUBACCOUNT`. Moldindconbank și Energbank au mici variații (parametru separat în 1C) |
+| Comertbank | XML | funcție separată |
+| EXIM, EuroCreditBank | TXT / DBF | funcții separate |
+
+**Deci Victoriabank primește fișierul în formatul BS-Client (1CClientBankExchange)** — același format în care Moldindconbank dă extrasele. MAIB primește DBF.
+
+Reguli comune observate în 1C, pe care le păstrăm:
+- suma exportată = suma documentului fără TVA reținut la sursă (dacă e cazul);
+- numărul documentului fără liniuțe și prefixe, doar cifre;
+- din destinație se scot caracterele `%` și rândurile noi;
+- ordinele exportate se marchează „exportat”;
+- plățile către buget au cod de tranzacție special (`101`) și cont trezorerial.
 
 ### Pachetul de export „pe zi / pe oră”
 
@@ -61,6 +82,10 @@ Butonul **„Exportă în bancă”** din lista ordinelor de plată:
 
 Contabilul încarcă fișierul în sistemul băncii. La importul extrasului următor, plățile se potrivesc automat cu ordinele exportate (după nr. document + sumă + IBAN).
 
+## 2a. Formele de tipar
+
+Configurația 1C are machetele formelor tipizate (ordin de plată, dispoziții de casă, factură fiscală, acte etc.), care sunt la zi. Le folosim ca **model de așezare** pentru formele noastre PDF, iar la implementare fiecare formă se compară cu formularul oficial în vigoare (Ministerul Finanțelor / SFS — formularele tipizate, documentele primare cu regim special). Formele au versiune și dată de valabilitate, ca rapoartele (`report_forms`).
+
 ## 3. Plata cumulată a impozitelor și contribuțiilor
 
 **Practica actuală:** ca să nu plătească comision pentru fiecare angajat, contabilul face **un singur ordin de plată** pe tip de obligație (ex. toate contribuțiile CNAS ale unui proiect) și scrie în destinație, pe nume, suma fiecăruia.
@@ -70,7 +95,7 @@ Contabilul încarcă fișierul în sistemul băncii. La importul extrasului urm�
 2. aplicația ia sumele din calculul salariului (`payroll_entries`) și creează **un ordin de plată** cu suma totală și **rândurile pe persoane** (nume, sumă);
 3. destinația se generează automat, ex.:
    `CAS 10.2026 proiect SOR-2026-01: Popescu I. 1 234,00; Rusu M. 980,50; …`
-4. **limita câmpului destinație** (la OTP — 210 caractere): dacă lista nu încape, aplicația scurtează numele (inițiale), iar dacă tot nu încape — propune împărțirea în 2 ordine sau trecerea listei într-o anexă, după cum cere banca/SFS;
+4. **limita câmpului destinație** depinde de bancă (OTP — 210 caractere; MAIB — 2 câmpuri `DE1` + `DE2`): dacă lista cu nume și prenume nu încape, aplicația lasă **doar numele de familie** și suma (`CAS 10.2026 SOR-2026-01: Popescu 1 234,00; Rusu 980,50; …`); dacă nici așa nu încape — propune împărțirea în 2 ordine;
 5. contabilitatea primește înregistrări corecte pe fiecare persoană și pe fiecare grant (datoria fiecăruia se stinge), iar comisionul bancar e unul singur.
 
 Tabele: `payment_orders` (antetul) + `payment_order_lines` (persoană, sumă, grant, rândul din calculul salariului) + `payment_batches` (lotul de export pe zi/oră).
