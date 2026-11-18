@@ -329,8 +329,40 @@ Table payment_orders {
   amount numeric(15,2) [not null]
   currency char(3) [not null]
   exchange_rate numeric(12,4) [note: 'curs BNM la dată']
-  purpose varchar [note: 'destinația plății']
+  purpose varchar [note: 'destinația plății (la OTP max. 210 caractere)']
   invoice_id uuid [ref: > invoices.id, note: 'factura achitată']
+  bank_account_id uuid [ref: > bank_accounts.id, note: 'contul plătitor']
+  beneficiary_iban varchar
+  beneficiary_name varchar
+  beneficiary_idno varchar
+  is_urgent boolean [default: false]
+  kind varchar [default: 'regular', note: 'regular / grouped_tax (plată cumulată CAS, CAM, impozit pe venit)']
+  tax_kind varchar [note: 'income_tax / cnas / cnam — pentru plata cumulată']
+  batch_id uuid [ref: > payment_batches.id, note: 'lotul de export în bancă']
+  bank_status varchar [default: 'draft', note: 'draft / exported / executed (confirmat din extras)']
+}
+
+Table payment_order_lines {
+  id uuid [pk]
+  payment_order_id uuid [not null, ref: > payment_orders.id]
+  person_id uuid [ref: > persons.id]
+  payroll_entry_id uuid [ref: > payroll_entries.id]
+  grant_id uuid [ref: > grants.id]
+  amount numeric(15,2) [not null]
+  Note: 'rândurile pe persoane ale unei plăți cumulate — un singur comision bancar'
+}
+
+Table payment_batches {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  bank_format_id uuid [not null, ref: > bank_formats.id]
+  bank_account_id uuid [not null, ref: > bank_accounts.id]
+  created_at timestamp [default: `now()`]
+  folder_path varchar [note: 'Bancă/Export/<Banca>/<AAAA-LL-ZZ_HHmm>/']
+  file_id varchar [note: 'fișierul TXT/DBF generat']
+  orders_count int
+  total_amount numeric(15,2)
+  created_by uuid [ref: > users.id]
 }
 
 Table allocations {

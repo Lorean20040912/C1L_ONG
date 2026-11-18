@@ -24,6 +24,8 @@ Proiect pentru examenul **Programare Web 2** și teza de licență.
 | [docs/06-specificatie-ONG17.md](docs/06-specificatie-ONG17.md) | Specificația ONG17 |
 | [docs/07-specificatie-5CON.md](docs/07-specificatie-5CON.md) | Specificația 5-CON |
 | [docs/08-design-interfata.md](docs/08-design-interfata.md) | Designul interfeței |
+| [docs/09-schimb-banci.md](docs/09-schimb-banci.md) | Formatele băncilor, exportul ordinelor de plată, plata cumulată a impozitelor |
+| [docs/10-strategie-produs.md](docs/10-strategie-produs.md) | Aplicație nouă vs extensie 1C, unde stau datele, stabilitate |
 | [design/prototip.html](design/prototip.html) | Prototip clicabil (se deschide în browser) |
 | [database/schema.dbml](database/schema.dbml) | Schema BD — se lipește în [dbdiagram.io](https://dbdiagram.io/d) |
 
