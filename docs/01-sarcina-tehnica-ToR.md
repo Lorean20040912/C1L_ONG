@@ -140,6 +140,24 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 - F8.5 Memorie de organizație: regulile explicate asistentului („la noi chiria se pune pe linia 3.4”) se salvează și se folosesc data viitoare; pot fi văzute și șterse.
 - F8.6 Toate conversațiile și acțiunile asistentului sunt în jurnalul de audit.
 
+### M9. Importul bugetului proiectului din fișier
+- F9.1 La câștigarea proiectului, contabilul încarcă **bugetul aprobat** (Excel, de regulă în formatul donatorului; și PDF/Word).
+- F9.2 AI-ul recunoaște structura: categorii și **linii de buget** (cod, denumire, unitate, cantitate, cost unitar, total), **contribuția donatorului / cofinanțarea / contribuția proprie**, valuta, perioada, **graficul tranșelor** (date și sume), după caz bugetul pe ani sau pe luni.
+- F9.3 Ecran de previzualizare: rândurile recunoscute, totalurile verificate cu totalul din fișier, câmpurile nesigure evidențiate; contabilul corectează și confirmă.
+- F9.4 La confirmare se creează automat: grantul (dacă nu există), liniile de buget ierarhice, legătura cu articolele de cheltuieli / 5-CON (propusă de AI), donatorii și cotele de cofinanțare, **graficul tranșelor**, iar — după politica contabilă — înregistrarea recunoașterii grantului (Dt 234.4/235 — Kt 425/537) pe sumă totală sau pe etape.
+- F9.5 **Modificările de buget** (realocări aprobate de donator) se importă la fel, ca versiune nouă a bugetului; execuția se compară mereu cu versiunea în vigoare, iar istoricul versiunilor se păstrează.
+- F9.6 Același șablon de donator se reține: la următorul proiect al aceluiași donator recunoașterea e instantanee.
+
+### M10. Îmbunătățirea continuă prin asistent (versiuni beta)
+- F10.1 Din orice ecran, utilizatorul poate scrie asistentului: „aici e o eroare”, „aș vrea ca…”, cu captură de ecran atașată automat → se creează o **cerere de modificare**.
+- F10.2 Asistentul clasifică cererea:
+  - **modificare de configurare** (interfață, texte, formule contabile, șabloane de rapoarte, reguli) → se face imediat ca **variantă beta** a setării, vizibilă doar pentru cine o testează;
+  - **modificare de cod** (funcție nouă, eroare în logică) → asistentul pregătește modificarea pe o **ramură separată** a codului, cu teste, iar aplicația o instalează ca **versiune beta** separată.
+- F10.3 Versiunea beta se testează o perioadă (utilizatorul alege cine o folosește: doar el / un grup / toți).
+- F10.4 Utilizatorul decide: **„Promovează”** → devine versiunea de bază (actualizare pentru toți), sau **„Renunță”** → beta se șterge, nimic nu se schimbă în versiunea stabilă.
+- F10.5 Nicio modificare nu ajunge în versiunea stabilă fără: testele automate trecute (inclusiv reconcilierea cu 1C și rapoartele IPC21 / 5-CON / ONG17), aprobarea contabilului-șef/administratorului și posibilitatea de întoarcere la versiunea anterioară.
+- F10.6 Istoricul versiunilor și al cererilor e vizibil în aplicație („ce s-a schimbat”), iar la vânzarea către alte organizații, actualizările stabile ajung la ele ca release-uri.
+
 ### M7. Migrarea datelor din 1C
 - F7.1 Import din 1C prin **interfața OData standard** a bazei 1C sau prin export XML (prelucrarea universală de export/import date XML).
 - F7.2 Se importă: planul de conturi, cataloagele, soldurile inițiale la data trecerii, documentele și înregistrările contabile istorice (perioada aleasă).
@@ -192,6 +210,8 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 | E8 | Drive / folder local + OCR/AI pentru facturi și ordine de plată; schimb cu banca (TXT/DBF/DBO); e-Factura |
 | E8a | Mijloace fixe din factură + asistentul „Închiderea lunii” |
 | E8b | Asistentul AI (chat, propuneri, căutare pe internet, personalizarea interfeței) |
+| E9a | Importul bugetului din Excel (linii, cofinanțare, tranșe, versiuni de buget) |
+| E9b | Îmbunătățirea prin asistent: cereri de modificare, versiuni beta, promovare / renunțare |
 | E9 | Granturi, execuția bugetului, rapoarte donatori pe șabloane oricare + pachetul de documente pe linii de buget |
 | E10 | Rapoarte fiscale IPC21, 5-CON, ONG17 + calendarul raportărilor |
 | E11 | Monitor legislativ, testare, documentare, susținere |
@@ -211,6 +231,8 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 11. O factură cu un mijloc fix, OMVSD și materiale se introduce o singură dată; mijlocul fix apare în fișa mijloacelor fixe și se amortizează la închiderea lunii.
 12. Pentru un donator cu șablon Excel nou și cerințe scrise în cuvinte, aplicația generează raportul completat și folderele pe linii de buget cu documentele cerute.
 13. O cerere în chat „mută butonul Dt/Kt la începutul barei” schimbă interfața imediat și poate fi anulată.
+14. Bugetul unui proiect încărcat din Excel creează liniile de buget și tranșele cu totalurile egale cu fișierul, fără introducere manuală.
+15. O cerere de modificare făcută prin asistent ajunge într-o versiune beta, iar la „Renunță” versiunea stabilă rămâne neschimbată.
 
 ## 9. În afara scopului (versiunea 1)
 

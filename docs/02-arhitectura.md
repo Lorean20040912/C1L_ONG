@@ -141,6 +141,80 @@ Interfața se construiește din: **metadate de bază** (în cod) + **override-ur
 
 Fiecare override are versiune, autor (utilizator / asistent), dată și poate fi anulat; cele de organizație cer aprobarea contabilului-șef. **Codul aplicației nu se modifică la runtime** — astfel nicio cerere din chat nu poate strica logica contabilă sau securitatea.
 
+## 9a. Importul bugetului proiectului
+
+```
+Excel/PDF buget ──▶ worker: citire foi (openpyxl) ──▶ AI: recunoaște tabelul de buget
+                     (linii, unități, cost unitar, total, cofinanțare, tranșe, valută)
+                                      │
+                                      ▼
+                     budget_imports (statut: de verificat) ──▶ ecran de previzualizare
+                                      │  contabilul corectează și confirmă
+                                      ▼
+   grants · grant_donors · budget_versions · budget_lines · grant_tranches · cost_items (propuse)
+   + înregistrarea recunoașterii grantului după politica contabilă (posting_rules)
+```
+
+- Verificare automată: suma liniilor = totalul din fișier; suma tranșelor = contribuția donatorului; cofinanțarea pe fiecare linie ≤ totalul liniei.
+- Maparea coloanelor confirmată se salvează pe donator (`report_templates` / șablonul de buget) → bugetul următor al aceluiași donator se citește fără întrebări.
+- Modificările de buget aprobate de donator = **o nouă versiune** (`budget_versions`); liniile vechi rămân pentru istoric, execuția se compară cu versiunea în vigoare la data cheltuielii.
+
+## 9b. Îmbunătățirea continuă prin asistent: canalele stabil și beta
+
+**Ideea:** utilizatorul descrie în aplicație o eroare sau o îmbunătățire, asistentul o realizează ca **versiune beta**, utilizatorul o testează și decide dacă devine versiunea de bază. Nu mai e nevoie de un programator la fiecare schimbare mică, dar nici nu se riscă versiunea pe care lucrează contabilii.
+
+### Două niveluri de modificări
+
+| Nivel | Exemple | Unde se schimbă | Cât de repede |
+|-------|---------|-----------------|---------------|
+| **1. Configurare** | etichete, ordinea butoanelor, coloane, valori implicite, formule contabile (`posting_rules`), șabloane de rapoarte/forme, reguli ale asistentului | în baza de date, ca **variantă beta** a înregistrării (`is_beta`, `release_id`) | imediat, fără reinstalare |
+| **2. Cod** | funcție nouă, eroare de calcul, ecran nou, import pentru o bancă nouă | în repository-ul de cod, pe o **ramură separată**, cu teste | minute–ore (build + teste) |
+
+### Fluxul pentru modificările de cod
+
+```
+Utilizator ──▶ „aici e o eroare / aș vrea ca…” (+ captură, ecranul curent)
+     │
+     ▼
+change_requests (statut: nouă) ──▶ asistentul clarifică cerința, o rezumă, utilizatorul confirmă
+     │
+     ▼
+Agentul de dezvoltare (Claude, rulat pe server sau prin GitHub Actions)
+  • creează ramura  beta/<nr-cerere>
+  • scrie codul + testele, rulează testele local
+  • deschide Pull Request (descrierea = cererea utilizatorului)
+     │
+     ▼
+CI (GitHub Actions): toate testele — unitare, formule contabile, reconcilierea cu 1C,
+IPC21 / 5-CON / ONG17 pe datele de test ──✗──▶ înapoi la agent (corectează) sau cererea eșuează
+     │ ✓
+     ▼
+Instalare automată ca **mediu beta**: al doilea set de containere (aceeași imagine,
+altă versiune), pe adresa beta.<domeniu>, cu o **copie a bazei de date** făcută la pornire
+     │
+     ▼
+Utilizatorul testează în beta (bannerul „BETA v1.8.0-beta.3” vizibil pe fiecare ecran)
+     │
+     ├── „Promovează” ──▶ merge în main ─▶ release stabil vX.Y.Z ─▶ actualizarea producției
+     │                     (backup automat înainte, migrări BD testate, rollback posibil)
+     └── „Renunță”   ──▶ PR închis, mediul beta oprit, producția neatinsă
+```
+
+### Reguli de siguranță (obligatorii)
+
+1. Agentul **nu are acces la baza de producție** și nici la secretele ei; lucrează doar cu codul și cu baza de test / copia beta.
+2. **Nimic nu ajunge în producție fără „Promovează”** dat de un utilizator cu rol de administrator sau contabil-șef, și fără testele verzi.
+3. Fiecare release stabil are **backup înainte** și **rollback** la versiunea anterioară dintr-un clic.
+4. Migrările bazei de date din beta trebuie să fie reversibile; beta lucrează pe copie, deci datele reale nu sunt atinse până la promovare.
+5. Modificările care ating **calculul impozitelor, formulele contabile sau securitatea** cer obligatoriu revizuirea diferențelor (diff) de către om înainte de promovare.
+6. Toate cererile, versiunile și deciziile sunt în jurnalul de audit.
+
+### Pentru vânzarea către alte organizații
+
+- **Canal stabil** — toți clienții; **canal beta** — doar organizația voastră (și clienții care vor să testeze).
+- Clienții primesc doar release-uri stabile, cu notă „ce s-a schimbat”; datele lor nu ajung niciodată în mediul beta.
+- O modificare cerută de un client se poate face doar pentru el (configurare de nivel 1) sau, dacă e utilă tuturor, devine release.
+
 ## 10. Securitate
 
 - Argon2 + 2FA TOTP; JWT acces 15 min + refresh rotativ; RBAC pe organizație; filtrare obligatorie după `organization_id` (test automat).
@@ -164,6 +238,8 @@ Fiecare override are versiune, autor (utilizator / asistent), dată și poate fi
 | `regulated`, `reports` | IPC21, 5-CON, ONG17, OSV… | report_forms, tax_reports, reporting_calendar |
 | `storage`, `bank`, `efactura`, `onec_import` | adaptoarele externe | storage_connections, bank_formats, bank_imports, efactura_messages, onec_id_map |
 | `assistant` | chat, instrumente, propuneri, memorie | ai_conversations, ai_messages, ai_actions, ai_memory |
+| `budget_import` | citirea bugetului din Excel/PDF, previzualizare, crearea liniilor și tranșelor | budget_imports, budget_versions, budget_lines, grant_tranches |
+| `releases` | cereri de modificare, versiuni beta, promovare / renunțare, rollback | change_requests, releases |
 
 ## 12. Modulele frontend
 
