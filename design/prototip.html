@@ -15,7 +15,7 @@ html,body{margin:0;height:100%;font:14px "Segoe UI",Arial,sans-serif;color:var(-
 a{color:var(--link);cursor:pointer}
 button{font:inherit;cursor:pointer}
 #app{display:grid;grid-template-rows:40px 34px 1fr;grid-template-columns:220px 1fr;height:100vh}
-#top{grid-column:1/3;background:var(--top);display:flex;align-items:center;gap:14px;padding:0 12px;border-bottom:1px solid #E2CF7C}
+#top{grid-column:1/-1;background:var(--top);display:flex;align-items:center;gap:14px;padding:0 12px;border-bottom:1px solid #E2CF7C}
 #top .logo{font-weight:700;font-size:16px;letter-spacing:.2px}
 #top .logo b{color:var(--red)}
 #top select{font:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:#fff}
@@ -93,7 +93,33 @@ table.grid{border-collapse:collapse;width:100%;font-size:13px}
 .drill{margin-top:12px}
 .kbd{font:11px monospace;border:1px solid #ccc;border-bottom-width:2px;border-radius:3px;padding:0 4px;background:#fafafa}
 .footer-note{color:var(--muted);font-size:12px;margin-top:18px}
-@media (max-width:900px){#app{grid-template-columns:56px 1fr}#side div span.t{display:none}.cols,.split{grid-template-columns:1fr}.form{grid-template-columns:110px 1fr}#top .search input{width:120px}}
+#app.with-ai{grid-template-columns:220px 1fr 360px}
+#assist{display:none;grid-row:2/4;grid-column:3;border-left:1px solid var(--border);background:#FCFCFA;flex-direction:column;min-height:0}
+#app.with-ai #assist{display:flex}
+#assist .hd{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-weight:600}
+#assist .msgs{flex:1;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px;font-size:13px}
+.msg{padding:8px 10px;border-radius:6px;max-width:92%;line-height:1.4}
+.msg.u{background:#FFF3C4;align-self:flex-end}
+.msg.a{background:#fff;border:1px solid var(--line)}
+.msg .src{font-size:11px;color:var(--muted);margin-top:4px}
+.prop{border:1px solid #CFE0F3;background:#F3F8FD;border-radius:6px;padding:8px 10px;font-size:13px}
+.prop .acts{display:flex;gap:6px;margin-top:6px}
+.prop.done{border-color:#BFE3C2;background:#F1FAF2}
+#assist .in{border-top:1px solid var(--line);padding:8px;display:flex;gap:6px}
+#assist .in input{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:3px;font:inherit}
+.ai-btn{background:#fff;border:1px solid #D9B52A;border-radius:3px;padding:3px 10px;font-weight:600}
+.steps{list-style:none;padding:0;margin:0;max-width:900px}
+.steps li{display:grid;grid-template-columns:28px 1fr 160px 220px;gap:10px;align-items:center;padding:9px 6px;border-bottom:1px solid #F0F0F0}
+.steps .ic{font-weight:700;text-align:center}
+.wiz{display:flex;gap:0;margin:6px 0 14px}
+.wiz span{padding:6px 14px;background:#F2F2F2;border:1px solid var(--line);font-size:13px}
+.wiz span.on{background:var(--btn);font-weight:600}
+.wiz span.ok{background:#E6F3E7}
+.tree{font:13px "Segoe UI",Arial;line-height:1.9;border:1px solid var(--line);padding:10px 14px;border-radius:4px;background:#FCFCFC}
+.tree .f{color:#6b5a1a}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:3px;background:#EEE;margin-left:4px}
+.tag.fa{background:#E3EEFB} .tag.omv{background:#FCEBD7} .tag.mat{background:#E9F5E5} .tag.srv{background:#F0E8F7}
+@media (max-width:900px){#app,#app.with-ai{grid-template-columns:56px 1fr}#assist{display:none!important}#side div span.t{display:none}.cols,.split{grid-template-columns:1fr}.form{grid-template-columns:110px 1fr}#top .search input{width:120px}}
 </style>
 </head>
 <body>
@@ -103,11 +129,17 @@ table.grid{border-collapse:collapse;width:100%;font-size:13px}
     <span class="logo">Conta<b>Hub</b> ONG</span>
     <select id="org"><option>AO „CARTERA”</option><option>AO „Exemplu Verde”</option><option>Fundația „Pilot”</option></select>
     <div class="search"><input placeholder="Căutare în program și legislație (Ctrl+F)"></div>
+    <button class="ai-btn" onclick="toggleAI()" title="Asistentul AI">✦ Asistent</button>
     <div class="icons" title="Notificări · Istoric · Favorite"><span>🔔</span><span>⏱</span><span>☆</span><span>Contabil-șef ▾</span></div>
   </div>
   <div id="side"></div>
   <div id="tabs"></div>
   <div id="main"></div>
+  <div id="assist">
+    <div class="hd"><span>✦ Asistent AI</span><a onclick="toggleAI()">×</a></div>
+    <div class="msgs" id="msgs"></div>
+    <div class="in"><input id="ask" placeholder="Scrie ce ai nevoie… (ex. „mută butonul Dt/Kt la început”)" onkeydown="if(event.key==='Enter')send()"><button class="b primary" onclick="send()">➤</button></div>
+  </div>
 </div>
 
 <script>
@@ -123,10 +155,13 @@ const NAV = {
   pay:{Documente:['Angajare','Calcul salariu','Plată către persoană fizică|new','Contracte civile|new','Cereri de scutire','Concedii medicale'],
        Rapoarte:['Stat de plată','Fișa de salariu','IPC21'],Cataloage:['Persoane fizice','Tipuri de calcul']},
   ngo:{Granturi:['Proiecte / granturi','Linii de buget','Donatori'],Documente:['Finanțare primită','Repartizarea cheltuielilor'],
-       Rapoarte:['Execuția bugetului','Raport pentru donator (Excel)|new','5-CON','ONG17|new']},
+       Rapoarte:['Execuția bugetului','Pachet pentru donator|new','5-CON','ONG17|new'],Setări:['Șabloane Excel ale donatorilor|new','Cerințele donatorilor|new']},
   rep:{Standard:['Balanța de verificare (OSV)','Fișa contului','Analiza contului','Cartea mare'],Fiscale:['IPC21','ONG17|new','TVA'],
        Statistice:['5-CON'],Donatori:['Raport pentru donator (Excel)|new']},
-  bank:{Documente:['Ordine de plată','Încasări pe cont','Plăți din cont','Încasări numerar','Plăți numerar','Decont de avans'],Servicii:['Import extras bancar','Curs BNM']},
+  bank:{Documente:['Ordine de plată','Încasări pe cont','Plăți din cont','Încasări numerar','Plăți numerar','Decont de avans'],Servicii:['Import extras bancar|new','Export ordine de plată','e-Factura|new','Curs BNM']},
+  fa:{Documente:['Mijloace fixe (din factură)|new','Punere în funcțiune','Casare'],Servicii:['Închiderea lunii|new'],Rapoarte:['Fișa mijloacelor fixe','Amortizarea pe granturi']},
+  ops:{Servicii:['Închiderea lunii|new','Operațiune manuală','Ajustarea perioadei'],Rapoarte:['Verificarea contabilității']},
+  adm:{Setări:['Surse de documente (Drive / folder)|new','Profiluri bănci|new','Conexiune e-Factura|new','Utilizatori și drepturi','Personalizarea interfeței|new'],Asistent:['Regulile memorate ale asistentului|new']},
 };
 const CAL = [
   ['25 octombrie','5-CON trimestrul III 2026','late'],['25 octombrie','IPC21 septembrie 2026','ok'],
@@ -134,7 +169,7 @@ const CAL = [
   ['25 ianuarie','5-CON trimestrul IV 2026',''],['25 martie','ONG17 pentru 2026','']
 ];
 const INVOICES = [
-  {st:'ok',n:'AA0001234',d:'03.11.2026',cp:'„Birotica Plus” SRL',sum:4560.00,gr:'SOR-2026-01 / 2.1 Echipament'},
+  {st:'ok',n:'AA0001234',d:'03.11.2026',cp:'„Birotica Plus” SRL',sum:16470.00,gr:'SOR-2026-01 / 2.1, 4.2 (MF + OMVSD + materiale)'},
   {st:'ok',n:'EF2026117',d:'05.11.2026',cp:'„Moldtelecom” SA',sum:612.40,gr:'SOR-2026-01 / 3.2 Comunicații'},
   {st:'no',n:'BB0045521',d:'10.11.2026',cp:'„Taxi Rapid” SRL',sum:350.00,gr:'— nealocat —'},
   {st:'ok',n:'AC0009870',d:'12.11.2026',cp:'„Print Expres” SRL',sum:1280.00,gr:'UE-2025-03 / 4.1 Publicații'},
@@ -236,9 +271,12 @@ const SCREENS = {
   dtkt(){
     return `<h1>Înregistrări contabile (Dt/Kt): Factură primită AA0001234</h1>
     <table class="grid"><tr><th>Data</th><th>Dt</th><th>Subconto Dt</th><th>Kt</th><th>Subconto Kt</th><th class="num">Suma</th><th>Grant / linie</th><th>Conținut</th></tr>
-    <tr><td>03.11.2026</td><td>123</td><td>Imprimantă laser</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">3 800,00</td><td>SOR-2026-01 / 2.1</td><td>Intrare echipament</td></tr>
-    <tr><td>03.11.2026</td><td>534</td><td>TVA</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">760,00</td><td>SOR-2026-01 / 2.1</td><td>TVA (ONG neînregistrat — inclus în cost)</td></tr></table>
-    <div class="totals"><span>Total Dt = Kt: <b>4 560,00</b></span></div>`;
+    <tr><td>03.11.2026</td><td>123</td><td>MF INV-0042 Laptop Lenovo</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">14 500,00</td><td>SOR-2026-01 / 2.1</td><td>Intrare și punere în funcțiune MF</td></tr>
+    <tr><td>03.11.2026</td><td>213</td><td>Mouse și geantă</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">850,00</td><td>SOR-2026-01 / 2.1</td><td>Intrare OMVSD</td></tr>
+    <tr><td>03.11.2026</td><td>211</td><td>Hârtie A4, toner</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">620,00</td><td>SOR-2026-01 / 4.2</td><td>Intrare materiale</td></tr>
+    <tr><td>03.11.2026</td><td>713</td><td>Servicii IT</td><td>521</td><td>„Birotica Plus” SRL</td><td class="num">500,00</td><td>SOR-2026-01 / 2.1</td><td>Instalare și configurare</td></tr></table>
+    <div class="totals"><span>Total Dt = Kt: <b>16 470,00</b></span></div>
+    <p class="footer-note">Conturile din exemplu sunt ilustrative; în aplicație vin din setările politicii contabile.</p>`;
   },
   'list-pf'(){
     return `<h1>Plăți către persoane fizice <span class="new">nou</span></h1>
@@ -287,26 +325,44 @@ const SCREENS = {
 const LINK = {'Facturi primite':['list-inv','Facturi primite'],'Plăți către persoane fizice':['list-pf','Plăți către persoane fizice'],
   'Plată către persoană fizică':['list-pf','Plăți către persoane fizice'],'Documente scanate (AI)':['doc-ai','Verificare: factura BB0045521'],
   'IPC21':['rep-ipc','IPC21 octombrie 2026'],'Execuția bugetului':['rep-budget','Execuția bugetului'],
-  'Raport pentru donator (Excel)':['rep-budget','Execuția bugetului']};
+  'Raport pentru donator (Excel)':['donor-pkg','Pachet pentru donator'],'Pachet pentru donator':['donor-pkg','Pachet pentru donator'],
+  'Import extras bancar':['bank-import','Import extras bancar'],'Închiderea lunii':['month-close','Închiderea lunii: octombrie 2026'],
+  'Mijloace fixe (din factură)':['doc-inv','Factură primită AA0001234'],'Surse de documente (Drive / folder)':['storage','Surse de documente'],
+  'Cerințele donatorilor':['donor-pkg','Pachet pentru donator'],'Șabloane Excel ale donatorilor':['donor-pkg','Pachet pentru donator']};
+
+/* ───────────── personalizarea interfeței (override-uri) ───────────── */
+const UI = {dtktFirst:false, grantLabel:'Grant'};
+function invoiceBar(){
+  const save='<button class="b primary" onclick="closeTab(active)">Înregistrează și închide</button><button class="b">Înregistrează</button>';
+  const dtkt=`<button class="b" onclick="openTab('dtkt','Dt/Kt: AA0001234')" ${UI.dtktFirst?'style="outline:2px solid var(--ai-b)"':''}>Dt/Kt</button>`;
+  return `<div class="bar">${UI.dtktFirst?dtkt+save:save+dtkt}<button class="b">Tipărire ▾</button><span class="sp"></span><a>Scan atașat (Drive) ↗</a></div>`;
+}
+const KIND={fixed_asset:['Mijloc fix','fa'],low_value_item:['OMVSD','omv'],material:['Materiale','mat'],service:['Servicii','srv']};
+const INV_LINES=[
+  ['Laptop Lenovo ThinkPad','fixed_asset',1,14500,'2.1 Echipament','123','→ fișa MF nr. INV-0042 creată'],
+  ['Mouse și geantă laptop','low_value_item',1,850,'2.1 Echipament','213','dare în exploatare'],
+  ['Hârtie A4, toner','material',1,620,'4.2 Consumabile','211',''],
+  ['Instalare și configurare','service',1,500,'2.1 Echipament','713','']];
 
 function invoiceForm(_,isNew){
   const r=INVOICES[0];
+  const sum=INV_LINES.reduce((s,l)=>s+l[3],0);
   return `<h1>Factură primită ${isNew?'(nouă)':r.n+' din '+r.d}</h1>
-  <div class="bar"><button class="b primary" onclick="closeTab(active)">Înregistrează și închide</button><button class="b">Înregistrează</button>
-    <button class="b" onclick="openTab('dtkt','Dt/Kt: AA0001234')">Dt/Kt</button><button class="b">Tipărire ▾</button><span class="sp"></span><a>Scan atașat (Drive) ↗</a></div>
+  ${invoiceBar()}
   <div class="form">
     <label>Număr</label><input value="${isNew?'':r.n}"><label>Data</label><input value="${isNew?'18.11.2026':r.d}">
     <label>Contrapartidă</label><div class="ref"><input value="${isNew?'':r.cp}"><span>…</span></div>
     <label>Contract</label><div class="ref"><input value="${isNew?'':'Contract nr. 45 din 10.01.2026'}"><span>…</span></div>
-    <label>Grant</label><div class="ref"><input value="${isNew?'':'SOR-2026-01 Fundația Soros'}"><span>…</span></div>
+    <label>${UI.grantLabel}</label><div class="ref"><input value="${isNew?'':'SOR-2026-01 Fundația Soros'}"><span>…</span></div>
     <label>Subdiviziune</label><div class="ref"><input value="Oficiul central"><span>…</span></div>
   </div>
-  <div class="inner-tabs"><span class="on">Mărfuri și echipament (1)</span><span>Servicii (0)</span><span>Plată</span><span>Suplimentar</span></div>
+  <div class="inner-tabs"><span class="on">Rânduri (${isNew?0:INV_LINES.length})</span><span>Plată</span><span>e-Factura</span><span>Suplimentar</span></div>
+  <div class="hint">O singură factură pentru tot: fiecare rând are <b>tipul</b> lui. Pentru „Mijloc fix” fișa se creează automat la înregistrare, iar amortizarea începe din luna următoare.</div>
   <div class="bar"><button class="b">Adaugă</button><button class="b">Selectare</button><button class="b">↑</button><button class="b">↓</button></div>
-  <table class="grid"><tr><th>N</th><th>Denumire</th><th class="num">Cantitate</th><th class="num">Preț</th><th class="num">Suma</th><th class="num">% TVA</th><th class="num">TVA</th><th>Linie de buget</th><th>Cont</th></tr>
-  ${isNew?'<tr><td>1</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>':
-  '<tr><td>1</td><td>Imprimantă laser A4</td><td class="num">1</td><td class="num">3 800,00</td><td class="num">3 800,00</td><td class="num">20%</td><td class="num">760,00</td><td>2.1 Echipament</td><td>123</td></tr>'}</table>
-  <div class="totals"><span>Total: <b>${isNew?'0,00':'4 560,00'}</b> lei</span><span>TVA: <b>${isNew?'0,00':'760,00'}</b></span></div>
+  <table class="grid"><tr><th>N</th><th>Denumire</th><th>Tip rând</th><th class="num">Cant.</th><th class="num">Suma</th><th>Linie de buget</th><th>Cont</th><th>La înregistrare</th></tr>
+  ${isNew?'<tr><td>1</td><td></td><td><select><option>Servicii</option><option>Mijloc fix</option><option>OMVSD</option><option>Materiale</option><option>Mărfuri</option></select></td><td></td><td></td><td></td><td></td><td></td></tr>':
+  INV_LINES.map((l,i)=>`<tr><td>${i+1}</td><td>${l[0]}</td><td><span class="tag ${KIND[l[1]][1]}">${KIND[l[1]][0]}</span></td><td class="num">${l[2]}</td><td class="num">${fmt(l[3])}</td><td>${l[4]}</td><td>${l[5]}</td><td style="color:var(--green)">${l[6]}</td></tr>`).join('')}</table>
+  <div class="totals"><span>Total: <b>${isNew?'0,00':fmt(sum)}</b> lei</span><span>TVA: <b>0,00</b> (ONG neplătitor)</span></div>
   <p class="footer-note"><span class="kbd">Ctrl+Enter</span> înregistrează și închide · <span class="kbd">Esc</span> închide fără salvare</p>`;
 }
 function drill(code){
@@ -315,6 +371,108 @@ function drill(code){
     `<table class="grid" style="margin-top:6px"><tr><th>Document</th><th>Persoana</th><th class="num">Suma</th><th class="num">Impozit</th></tr>${rows.map(r=>
       `<tr ondblclick="openTab('doc-pf','Plată ${r.n}')"><td><a onclick="openTab('doc-pf','Plată ${r.n}')">Plată către persoană fizică ${r.n} din ${r.d}</a></td><td>${r.p}</td><td class="num">${fmt(r.gross)}</td><td class="num">${fmt(r.tax)}</td></tr>`).join('')}</table>`
     : `<p class="footer-note">În prototip descifrarea e demonstrată pe codurile PL, PLs și FOL.</p>`);
+}
+
+/* ───────────── ecrane noi ───────────── */
+Object.assign(SCREENS,{
+  'bank-import'(){
+    const rows=[['01.11.2026','Încasare','Fundația Soros Moldova','1003600012345','Tranșa 2 grant SOR-2026-01','120 000,00','Încasare pe cont · 521→ 421 · SOR-2026-01','nou'],
+      ['03.11.2026','Plată','„Birotica Plus” SRL','1002600054321','Plata fact. AA0001234','4 560,00','Plată din cont · 521 · SOR-2026-01 / 2.1','nou'],
+      ['05.11.2026','Plată','„Moldtelecom” SA','1002600000123','Servicii comunicații oct.','612,40','Plată din cont · 521 · SOR-2026-01 / 3.2','nou'],
+      ['05.11.2026','Plată','Comision bancar','—','Comision deservire','25,00','Plată din cont · 714 · cheltuieli administrative','nou'],
+      ['01.11.2026','Încasare','Cotizații membri','—','Cotizație Ionescu A.','200,00','—','deja importat']];
+    return `<h1>Import extras bancar <span class="new">nou</span></h1>
+    <div class="wiz"><span class="ok">1. Fișier ✓</span><span class="on">2. Verificare</span><span>3. Documente create</span></div>
+    <div class="form" style="grid-template-columns:150px 1fr 150px 1fr">
+      <label>Cont bancar</label><select><option>MD24 MAIB •••• 2512 (MDL) — SOR-2026-01</option></select>
+      <label>Profil format</label><select><option>MAIB — extras TXT (CP1251)</option><option>FinComBank — DBF</option><option>Moldindconbank — DBO</option><option>Victoriabank — TXT</option><option>OTP Bank — DBF</option></select>
+      <label>Fișier</label><input value="extras_maib_2026-11.txt" disabled><label>Perioada</label><input value="01.11.2026 – 15.11.2026" disabled>
+    </div>
+    <div class="hint">5 rânduri citite: <b>4 noi</b>, <b>1 deja importat</b> (sărit, fără dubluri). Contrapartidele recunoscute după IDNO/IBAN; contul și grantul propuse după istoric.</div>
+    <table class="grid"><tr><th></th><th>Data</th><th>Tip</th><th>Contrapartidă</th><th>IDNO</th><th>Destinația plății</th><th class="num">Suma</th><th>Document propus</th></tr>
+    ${rows.map(r=>`<tr ${r[7]!=='nou'?'style="color:#999"':''}><td><input type="checkbox" ${r[7]==='nou'?'checked':''} ${r[7]!=='nou'?'disabled':''}></td><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td class="num">${r[5]}</td><td>${r[7]==='nou'?r[6]:'<i>deja importat</i>'}</td></tr>`).join('')}</table>
+    <div class="bar" style="margin-top:10px"><button class="b primary" onclick="closeTab('bank-import')">Creează 4 documente</button><button class="b">Înapoi</button></div>`;
+  },
+  'month-close'(){
+    const st=[['✓','ok','Calculul salariului','12 persoane, 3 contracte civile','Recalculează'],
+      ['✓','ok','Amortizarea mijloacelor fixe','14 MF · 3 418,20 lei','Vezi înregistrările'],
+      ['✓','ok','Darea în exploatare OMVSD','2 poziții','Vezi înregistrările'],
+      ['!','late','Repartizarea cheltuielilor pe granturi','714 → 3 granturi: lipsește coeficientul pentru UE-2025-03','Corectează'],
+      ['○','','Diferențe de curs valutar','conturi în EUR și USD','Previzualizare'],
+      ['○','','Venituri din mijloace cu destinație specială','recunoaștere = cheltuieli din granturi','Previzualizare'],
+      ['○','','Închiderea conturilor de venituri și cheltuieli','','Previzualizare'],
+      ['○','','Verificări finale','Dt = Kt, solduri negative, documente neînregistrate','Rulează']];
+    return `<h1>Închiderea lunii: octombrie 2026 <span class="new">nou</span></h1>
+    <div class="bar"><button class="b primary">Execută pașii rămași</button><button class="b">Anulează închiderea</button><span class="sp"></span><select class="b"><option>Octombrie 2026</option></select></div>
+    <div class="hint">Fiecare pas arată ce înregistrări va face <b>înainte</b> să le facă. Orice pas se poate anula și reface.</div>
+    <ul class="steps">${st.map(([ic,c,n,d,a])=>`<li><span class="ic ${c}">${ic}</span><span><b>${n}</b><br><span style="color:var(--muted);font-size:12px">${d}</span></span><span class="${c}">${c==='ok'?'Făcut':c==='late'?'De corectat':'De făcut'}</span><a>${a}</a></li>`).join('')}</ul>`;
+  },
+  'donor-pkg'(){
+    return `<h1>Pachet pentru donator <span class="new">nou</span></h1>
+    <div class="wiz"><span class="ok">1. Șablon ✓</span><span class="ok">2. Cerințe ✓</span><span class="on">3. Pachet</span></div>
+    <div class="cols"><div>
+      <div class="form" style="grid-template-columns:130px 1fr">
+        <label>Donator / grant</label><select><option>Fundația Soros — SOR-2026-01</option></select>
+        <label>Perioada</label><select><option>Trimestrul III 2026</option></select>
+        <label>Șablon Excel</label><div><a>Raport financiar Soros 2026.xlsx</a> — mapare confirmată (14 linii, 3 foi)</div>
+      </div>
+      <h2>Cerințele donatorului</h2>
+      <div class="card" style="font-size:13px"><i>Scris de contabil:</i> „Pentru salarii: contract, foaie de pontaj, stat de plată, ordin de plată. Pentru deplasări: ordin, bilete, decont, raport de deplasare. Pentru achiziții peste 5 000 lei: 3 oferte și proces-verbal de selecție.”
+        <div style="margin-top:6px;color:var(--green)">✓ Transformat de AI în 3 reguli — <a>vezi / corectează</a></div></div>
+      <h2>Ce se va crea</h2>
+      <div class="tree">📁 <span class="f">Rapoarte / Fundația Soros / SOR-2026-01 / 2026-T3</span><br>
+        &nbsp;&nbsp;📊 Raport financiar SOR-2026-01 T3.xlsx<br>&nbsp;&nbsp;📋 Lista de verificare (documente lipsă).xlsx<br>
+        &nbsp;&nbsp;📁 1.1 Salarii personal proiect <span class="tag">36 documente</span><br>
+        &nbsp;&nbsp;📁 2.1 Echipament <span class="tag">9 documente</span> <span class="tag omv">lipsesc 2 oferte</span><br>
+        &nbsp;&nbsp;📁 3.1 Transport și deplasări <span class="tag">14 documente</span> <span class="tag omv">lipsește 1 raport de deplasare</span><br>
+        &nbsp;&nbsp;📁 3.2 Comunicații <span class="tag">6 documente</span></div>
+      <div class="bar" style="margin-top:10px"><button class="b primary">Generează pachetul</button><button class="b">Doar Excel</button><span class="sp"></span><label>Destinație:</label><select class="b"><option>Google Drive organizației</option><option>Folder local (agent)</option></select></div>
+    </div><div>
+      <h2>Documente lipsă</h2>
+      <table class="grid"><tr><th>Cheltuială</th><th>Lipsește</th></tr>
+        <tr><td>Laptop Lenovo, AA0001234</td><td>2 oferte de preț</td></tr>
+        <tr><td>Deplasare Bălți, 10.11</td><td>raport de deplasare</td></tr></table>
+      <p class="footer-note">Operatorii pot pune documentele direct în folderul liniei de buget — la sincronizare aplicația le leagă de cheltuieli.</p>
+    </div></div>`;
+  },
+  storage(){
+    return `<h1>Surse de documente <span class="new">nou</span></h1>
+    <table class="grid"><tr><th>Sursa</th><th>Tip</th><th>Rădăcina</th><th>Implicit</th><th>Ultima sincronizare</th></tr>
+      <tr><td>Drive-ul organizației</td><td>Google Drive</td><td>Cartera / Contabilitate</td><td>✓</td><td>18.11.2026 09:42</td></tr>
+      <tr><td>Folder scanner birou</td><td>Folder local (agent pe calculator)</td><td>D:\\Scanari\\Facturi</td><td></td><td>18.11.2026 09:40</td></tr>
+      <tr><td>Arhivă server</td><td>Folder pe server</td><td>/data/docs/arhiva</td><td></td><td>—</td></tr></table>
+    <div class="bar" style="margin-top:10px"><button class="b primary">Conectează Google Drive</button><button class="b">Adaugă folder local</button><button class="b">Descarcă agentul de sincronizare</button></div>`;
+  }
+});
+
+/* ───────────── asistentul AI ───────────── */
+let chat=[
+  {r:'u',t:'De ce nu apare chiria de la Popescu în IPC21?'},
+  {r:'a',t:'Chiria e înregistrată ca serviciu primit, nu ca plată către persoană fizică — de aceea nu are cod de venit FOL. Pot crea documentul „Plată către persoană fizică” pentru 5 000 lei cu reținerea la sursă.',src:'Codul fiscal art. 90¹ alin.(3) · instrucțiunea IPC21, codul 41'},
+  {r:'p',id:'p1',t:'Creează „Plată către persoană fizică” PF-0010: Popescu Ion, chirie (FOL), 5 000,00 lei, octombrie 2026.'}];
+function toggleAI(){ document.getElementById('app').classList.toggle('with-ai'); renderChat(); }
+function renderChat(){
+  document.getElementById('msgs').innerHTML = chat.map(m=> m.r==='p'
+    ? `<div class="prop ${m.done?'done':''}"><b>Propunere</b><br>${m.t}${m.done?`<div style="margin-top:6px;color:var(--green)">✓ ${m.done}</div>`:
+      `<div class="acts"><button class="b primary" onclick="apply('${m.id}')">Aplică</button><button class="b" onclick="reject('${m.id}')">Respinge</button></div>`}</div>`
+    : `<div class="msg ${m.r}">${m.t}${m.src?`<div class="src">Surse: ${m.src}</div>`:''}</div>`).join('');
+  const el=document.getElementById('msgs'); el.scrollTop=el.scrollHeight;
+}
+function apply(id){
+  const p=chat.find(m=>m.id===id); if(!p) return;
+  if(p.ui==='dtkt'){ UI.dtktFirst=true; p.done='Aplicat. Poți anula din Administrare → Personalizarea interfeței.'; openTab('doc-inv','Factură primită AA0001234'); }
+  else if(p.ui==='label'){ UI.grantLabel='Proiect'; p.done='Aplicat pentru tine. Pentru toată organizația — aprobarea contabilului-șef.'; openTab('doc-inv','Factură primită AA0001234'); }
+  else { p.done='Document PF-0010 creat ca ciornă — verifică și înregistrează.'; openTab('doc-pf','Plată PF-0010'); }
+  renderChat(); render();
+}
+function reject(id){ chat=chat.filter(m=>m.id!==id); renderChat(); }
+function send(){
+  const q=document.getElementById('ask').value.trim(); if(!q) return; document.getElementById('ask').value='';
+  chat.push({r:'u',t:q});
+  if(/dt\/?kt/i.test(q)) chat.push({r:'a',t:'Pot muta butonul Dt/Kt la începutul barei în formularul facturii. Schimb doar setarea interfeței, nu datele.'},{r:'p',id:'p'+chat.length,ui:'dtkt',t:'Interfață: în „Factură primită”, butonul Dt/Kt primul în bara de comenzi (doar pentru tine).'});
+  else if(/proiect|grant/i.test(q)) chat.push({r:'a',t:'Pot redenumi câmpul „Grant” în „Proiect” în formulare.'},{r:'p',id:'p'+chat.length,ui:'label',t:'Interfață: eticheta „Grant” → „Proiect”.'});
+  else chat.push({r:'a',t:'În prototip răspund doar la exemple. Încearcă: „mută butonul Dt/Kt la început” sau „scrie Proiect în loc de Grant”. În aplicație răspunsul vine de la modelul AI, cu acces la datele tale și la căutarea pe internet.'});
+  renderChat();
 }
 
 /* ───────────── randare ───────────── */

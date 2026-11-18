@@ -42,6 +42,22 @@ Prototip clicabil: [`design/prototip.html`](../design/prototip.html) — se desc
 | **Raport** | parametri (perioadă, organizație) → „Generează”; celulele se pot descifra (click → documentele sursă); Export XML / Excel / PDF | IPC21, 5-CON, OSV |
 | **Catalog** | listă ierarhică (grupe) + formular element | Contrapartide |
 
+### Ecranele din prototipul final
+
+| Ecran | Unde | Ce demonstrează |
+|-------|------|-----------------|
+| Pagina inițială | ⌂ | calendarul raportărilor, documente AI de verificat, bugete, propuneri legislative |
+| Facturi primite → Factură | Achiziții | **rânduri de tipuri diferite** (mijloc fix / OMVSD / materiale / servicii) într-o singură factură; fișa MF se creează automat |
+| Dt/Kt | din factură | înregistrările generate pe fiecare tip de rând |
+| Verificare scan (AI) | Achiziții → Documente scanate | scan + câmpuri cu încredere |
+| Plăți către persoane fizice | Achiziții / Salarii | chirie FOL, contract civil PL, arendă PLs |
+| IPC21 | Rapoarte | Tabelul 1 + descifrarea sumelor |
+| Import extras bancar | Bancă și casă | asistent în 3 pași, profil pe bancă (MAIB, FinComBank, Moldindconbank, Victoriabank, OTP), rânduri deja importate sărite |
+| Închiderea lunii | Operațiuni / Mijloace fixe | pași cu statut, previzualizare, anulare |
+| Pachet pentru donator | Granturi și ONG | șablon → cerințe → structura de foldere pe linii de buget + documente lipsă |
+| Surse de documente | Administrare | Google Drive / folder local prin agent / folder pe server |
+| **Asistent AI** | butonul „✦ Asistent” | chat cu propuneri *Aplică / Respinge*; comanda „mută butonul Dt/Kt la început” chiar schimbă interfața |
+
 ## 3. Comenzi și taste (ca în 1C)
 
 | Tastă | Acțiune |
