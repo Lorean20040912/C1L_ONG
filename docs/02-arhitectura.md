@@ -12,6 +12,9 @@
 | D6 | **Stratul `storage`** cu adaptoare: Google Drive / folder local | organizația alege unde stau originalele; restul aplicației nu știe diferența |
 | D7 | **Adaptoare de schimb**: bănci (TXT/DBF/DBO), e-Factura (API), 1C (migrare) | fiecare sistem extern izolat într-un modul, testat separat |
 | D8 | **Docker Compose** pe serverul organizației | instalare și actualizare cu o comandă; datele rămân la organizație |
+| D9 | **Un nucleu comun + profiluri de funcționalitate** (ONG, SRL, TVA, comerț, alimentație publică, cazare, ÎI, GȚ) alese la crearea bazei; profilurile pornesc module, secțiuni, documente, rapoarte și reguli de înregistrare — ca „Funcționalitatea” din 1C | o singură aplicație pentru toate firmele contabilului; un modul nou nu cere program separat (vezi [13-tipuri-entitati-profiluri.md](13-tipuri-entitati-profiluri.md)) |
+| D10 | **Două motoare de înregistrare**: partidă dublă (`entry_lines`) și partidă simplă (`simple_ledger_entries`), pe aceleași documente | ÎI și GȚ țin partidă simplă; documentele primare rămân aceleași |
+| D11 | **Aplicație web instalabilă (PWA)**, nu aplicație desktop nativă; opțional împachetare Tauri pentru acces direct la scanner/foldere | serverul face munca grea, merge pe calculatoare slabe și pe orice sistem de operare, o singură actualizare pentru toți; desktopul nativ ar fi tot client-server, dar mai greu de întreținut |
 
 1C rămâne doar **sursa datelor pentru migrare** și referința pentru logica contabilă (vezi [03-analiza-configuratiei-1c.md](03-analiza-configuratiei-1c.md)).
 
@@ -215,6 +218,31 @@ Utilizatorul testează în beta (bannerul „BETA v1.8.0-beta.3” vizibil pe fi
 - Clienții primesc doar release-uri stabile, cu notă „ce s-a schimbat”; datele lor nu ajung niciodată în mediul beta.
 - O modificare cerută de un client se poate face doar pentru el (configurare de nivel 1) sau, dacă e utilă tuturor, devine release.
 
+## 9c. Asistentul de procese: sarcini, amintiri, mesaje
+
+```
+task_templates (reguli recurente: „lunar, ziua 5”, „pe 1 ale lunii”, „anual, 31.12”)
+        │  planificatorul din worker, zilnic la 06:00
+        ▼
+tasks (sarcini concrete pe firmă și lună, cu termen, responsabil, acțiune)
+        │
+        ├──▶ pagina inițială + notificări (aplicație / Telegram / e-mail)
+        ├──▶ acțiuni automate sigure: crearea folderelor lunii prin `storage`
+        └──▶ acțiuni cu confirmare: mesaj către administrator → outbound_messages (draft)
+                                    → utilizatorul apasă „Trimite” → canalul ales
+```
+
+- **Șabloane gata** pe profil: SRL cu salariați → „impozitele lunii către administrator până pe 5”, „IPC21 până pe 25”; orice firmă → „folderele lunii”, „extrasul bancar”; plătitor TVA → „declarația TVA”.
+- **Sugestii AI** (worker, o dată pe zi): analizează plățile repetitive (același furnizor, aceeași zi aproximativă, 3 luni la rând → „vrei amintire lunară pentru plata energiei?”), lunile fără extras bancar importat, documentele scanate necontabilizate. Sugestiile intră ca `ai_actions` și devin sarcini doar la „Aplică”.
+- **Mesajele**: textul se generează din date (ex. din calculul salariilor: CAS, CAM, impozit pe venit, termene), se păstrează ca ciornă în `outbound_messages`, iar trimiterea se face **numai** după confirmare. Canale: **Telegram** (bot oficial, gratuit — cel mai simplu de integrat), **e-mail**; **Viber** prin API-ul de chatbot (condiții comerciale, de verificat) sau prin „Copiază și deschide Viber”.
+- Datele de contact ale administratorilor: `org_contacts`.
+
+### Evidența personală privată
+
+- Utilizatorul își leagă contul de persoana lui din fiecare bază (`user_person_links`).
+- La login, un serviciu verifică pentru luna trecută/curentă, în fiecare bază legată, dacă există calcul de salariu și plata salariului pentru acea persoană → rezultatul în `personal_checks`.
+- **Confidențialitate**: tabelele personale au `user_id`, iar accesul e filtrat strict pe utilizatorul curent (Row-Level Security); nu apar în rapoarte, în audit-ul vizibil altora sau în contextul asistentului altui utilizator. Verificarea citește doar bazele la care utilizatorul are deja drept de acces.
+
 ## 10. Securitate
 
 - Argon2 + 2FA TOTP; JWT acces 15 min + refresh rotativ; RBAC pe organizație; filtrare obligatorie după `organization_id` (test automat).
@@ -238,6 +266,14 @@ Utilizatorul testează în beta (bannerul „BETA v1.8.0-beta.3” vizibil pe fi
 | `regulated`, `reports` | IPC21, 5-CON, ONG17, OSV… | report_forms, tax_reports, reporting_calendar |
 | `storage`, `bank`, `efactura`, `onec_import` | adaptoarele externe | storage_connections, bank_formats, bank_imports, efactura_messages, onec_id_map |
 | `assistant` | chat, instrumente, propuneri, memorie | ai_conversations, ai_messages, ai_actions, ai_memory |
+| `workspaces`, `features` | bazele, expertul „Bază nouă”, profilurile și pornirea modulelor | workspaces, organization_features, organization_tax_regimes, coa_templates |
+| `inventory` | nomenclator, depozite, mișcări de stoc, evaluare FIFO / cost mediu | items, warehouses, stock_moves |
+| `retail`, `catering` | case de marcat, rapoarte Z; rețete și descărcarea materiei prime | cash_registers, retail_shifts, recipes, recipe_lines |
+| `vat` | registrele TVA, declarația TVA | vat_entries |
+| `simple_ledger` | partida simplă pentru ÎI / GȚ, registrul-jurnal | simple_ledger_entries |
+| `agriculture` | membrii GȚ, culturi / livezi, recoltă | farm_members, crops, harvests |
+| `tasks`, `notifications` | sarcini recurente, foldere lunare, amintiri, mesaje cu confirmare | task_templates, tasks, org_contacts, notification_channels, outbound_messages |
+| `personal` | evidența privată a utilizatorului (salariul de la fiecare firmă) | user_person_links, personal_checks |
 | `budget_import` | citirea bugetului din Excel/PDF, previzualizare, crearea liniilor și tranșelor | budget_imports, budget_versions, budget_lines, grant_tranches |
 | `releases` | cereri de modificare, versiuni beta, promovare / renunțare, rollback | change_requests, releases |
 

@@ -1,9 +1,9 @@
-// ContaHub ONG — schema bazei de date (PostgreSQL)
+// ContaHub — schema bazei de date (PostgreSQL)
 // Copiați acest fișier integral în https://dbdiagram.io/d
 
-Project ContaHub_ONG {
+Project ContaHub {
   database_type: 'PostgreSQL'
-  Note: 'Sistem web de contabilitate pentru ONG-uri (înlocuitor 1C), cu asistență AI'
+  Note: 'ContaHub — sistem web de contabilitate pentru ONG, SRL, ÎI și GȚ (înlocuitor 1C), cu asistență AI'
 }
 
 // ───────────────────────── ENUM-uri ─────────────────────────
@@ -50,6 +50,22 @@ Enum update_status {
   pending
   approved
   rejected
+}
+
+Enum entity_type {
+  srl
+  sa
+  ii [note: 'întreprindere individuală']
+  gt [note: 'gospodărie țărănească (de fermier)']
+  ngo_association [note: 'asociație obștească']
+  ngo_foundation [note: 'fundație']
+  ngo_other [note: 'instituție privată, culte, partide etc.']
+  other
+}
+
+Enum accounting_method {
+  double_entry [note: 'partidă dublă — entry_lines']
+  single_entry [note: 'partidă simplă — simple_ledger_entries']
 }
 
 Enum line_kind {
@@ -110,10 +126,14 @@ Enum subconto_type {
 
 Table organizations {
   id uuid [pk]
+  workspace_id uuid [not null, ref: > workspaces.id, note: 'baza (ca baza de date din 1C)']
   name varchar [not null]
   idno varchar(13) [unique, not null, note: 'cod fiscal']
-  legal_form varchar [note: 'AO, Fundație, SRL...']
-  is_ngo boolean [default: true]
+  entity_type entity_type [not null, note: 'forma juridică: SRL, SA, ÎI, GȚ, ONG...']
+  accounting_method accounting_method [not null, default: 'double_entry', note: 'ÎI / GȚ: single_entry']
+  vat_payer_from date [note: 'null = neplătitor de TVA']
+  vat_code varchar
+  legal_form varchar [note: 'denumirea completă a formei: AO, Fundație, SRL...']
   drive_root_folder_id varchar [note: 'folderul rădăcină pe Google Drive']
   base_currency char(3) [default: 'MDL']
   ngo_category char(1) [note: 'ONG17: A asociație, B fundație, C filantropică, D culte, E partide, F presă, G alte']
@@ -355,6 +375,8 @@ Table invoice_lines {
   unit_price numeric(15,4)
   vat_rate numeric(5,2)
   amount numeric(15,2) [not null]
+  item_id uuid [ref: >? items.id, note: 'nomenclatorul — pentru stocuri']
+  warehouse_id uuid [ref: >? warehouses.id]
   line_kind line_kind [not null, default: 'service', note: 'o factură poate avea MF + OMVSD + materiale']
   account_id uuid [ref: >? accounts.id]
   budget_line_id uuid [ref: >? budget_lines.id]
@@ -1028,3 +1050,299 @@ Table account_turnovers {
 }
 
 Ref: entry_lines.(budget_line_id, grant_id) >? budget_lines.(id, grant_id)
+
+// ───────────────────── Baze și profiluri de funcționalitate ─────────────────────
+
+Table workspaces {
+  id uuid [pk]
+  name varchar [not null, note: 'ex. „Casa Bună” SRL — o bază poate avea una sau mai multe organizații']
+  created_by uuid [not null, ref: > users.id]
+  source varchar [note: 'empty / onec_import / excel_import']
+  created_at timestamp [default: `now()`]
+}
+
+Table features {
+  code varchar [pk, note: 'ngo_grants, vat, retail, wholesale, catering, production, accommodation, agriculture, payroll, fixed_assets, single_entry...']
+  name varchar [not null]
+  modules jsonb [not null, note: 'secțiuni, documente, rapoarte, șabloane de formule pornite de această funcționalitate']
+  default_for jsonb [note: 'pentru ce tipuri de entitate e propusă implicit în expert']
+}
+
+Table organization_features {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  feature_code varchar [not null, ref: > features.code]
+  enabled_from date [not null]
+  enabled_to date
+  indexes {
+    (organization_id, feature_code, enabled_from) [unique]
+  }
+}
+
+Table organization_tax_regimes {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  regime_code varchar [not null, note: 'general / ivao_sme / gt / ngo / independent_activity...']
+  valid_from date [not null]
+  valid_to date
+  basis varchar [note: 'temeiul legal / decizia']
+  indexes {
+    (organization_id, valid_from) [unique]
+  }
+}
+
+Table coa_templates {
+  id uuid [pk]
+  code varchar [not null, note: 'general / ngo / ii_single_entry...']
+  version int [not null]
+  valid_from date [not null]
+  accounts jsonb [not null, note: 'conturile, subconturile și analitica — copiate în accounts la crearea bazei']
+  indexes {
+    (code, version) [unique]
+  }
+}
+
+// ───────────────────── Stocuri, comerț, alimentație publică ─────────────────────
+
+Table items {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null]
+  kind varchar [not null, note: 'goods / material / product / service / dish']
+  unit varchar [not null]
+  barcode varchar
+  vat_rate numeric(5,2)
+  account_id uuid [ref: >? accounts.id, note: 'contul implicit (217 mărfuri, 211 materiale...)']
+  cost_item_id uuid [ref: >? cost_items.id]
+  parent_id uuid [ref: >? items.id, note: 'grupe']
+  indexes {
+    (organization_id, barcode)
+  }
+}
+
+Table warehouses {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null]
+  kind varchar [note: 'wholesale / retail / kitchen']
+  retail_price_accounting boolean [default: false, note: 'evidență la preț de vânzare (adaos comercial)']
+}
+
+Table stock_moves {
+  id bigserial [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  document_id uuid [not null, ref: > documents.id]
+  item_id uuid [not null, ref: > items.id]
+  warehouse_id uuid [not null, ref: > warehouses.id]
+  move_date date [not null]
+  direction varchar [not null, note: 'in / out']
+  quantity numeric(15,3) [not null]
+  cost numeric(15,2) [note: 'costul (FIFO / cost mediu ponderat, din politica contabilă)']
+  sale_amount numeric(15,2)
+  lot_ref bigint [ref: >? stock_moves.id, note: 'pentru FIFO: intrarea din care se descarcă']
+  indexes {
+    (item_id, warehouse_id, move_date)
+    document_id
+  }
+}
+
+Table recipes {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  product_item_id uuid [not null, ref: > items.id, note: 'preparatul (ex. shaorma)']
+  yield_quantity numeric(12,3) [not null, default: 1]
+  valid_from date [not null]
+  document_id uuid [ref: >? documents.id, note: 'fișa tehnologică / de calculație aprobată']
+}
+
+Table recipe_lines {
+  id uuid [pk]
+  recipe_id uuid [not null, ref: > recipes.id]
+  ingredient_item_id uuid [not null, ref: > items.id]
+  quantity numeric(12,4) [not null]
+  waste_percent numeric(5,2) [default: 0, note: 'pierderi tehnologice']
+}
+
+Table cash_registers {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  fiscal_number varchar [not null, note: 'numărul de înregistrare al MCC']
+  model varchar
+  warehouse_id uuid [ref: >? warehouses.id]
+  is_active boolean [default: true]
+}
+
+Table retail_shifts {
+  id uuid [pk]
+  document_id uuid [unique, not null, ref: - documents.id, note: 'raportul Z / vânzarea cu amănuntul pe zi']
+  cash_register_id uuid [not null, ref: > cash_registers.id]
+  z_number int
+  shift_date date [not null]
+  total_cash numeric(15,2) [default: 0]
+  total_card numeric(15,2) [default: 0]
+  total_vat numeric(15,2) [default: 0]
+}
+
+// ───────────────────── TVA ─────────────────────
+
+Table vat_entries {
+  id bigserial [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  document_id uuid [not null, ref: > documents.id]
+  direction varchar [not null, note: 'sale / purchase']
+  period date [not null, note: 'luna declarației']
+  counterparty_id uuid [ref: >? counterparties.id]
+  vat_rate numeric(5,2) [not null]
+  taxable_base numeric(15,2) [not null]
+  vat_amount numeric(15,2) [not null]
+  is_deductible boolean [default: true]
+  efactura_id varchar
+  indexes {
+    (organization_id, period, direction)
+  }
+  Note: 'registrele de cumpărări și vânzări → declarația TVA'
+}
+
+// ───────────────────── Partida simplă (ÎI, GȚ) ─────────────────────
+
+Table simple_ledger_entries {
+  id bigserial [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  document_id uuid [not null, ref: > documents.id]
+  entry_date date [not null, note: 'data încasării / plății']
+  kind varchar [not null, note: 'income / expense']
+  category varchar [not null, note: 'vânzări, mărfuri, servicii terți, salarii, amortizare...']
+  amount numeric(15,2) [not null]
+  is_deductible boolean [default: true]
+  description varchar
+  indexes {
+    (organization_id, entry_date)
+  }
+  Note: 'registrul-jurnal de venituri și cheltuieli: venit = încasare, cheltuială = plată'
+}
+
+// ───────────────────── Gospodărie țărănească ─────────────────────
+
+Table farm_members {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  person_id uuid [not null, ref: > persons.id]
+  share_percent numeric(5,2) [note: 'cota la distribuirea venitului']
+  is_head boolean [default: false, note: 'conducătorul GȚ']
+  valid_from date [not null]
+  valid_to date
+}
+
+Table crops {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null, note: 'ex. livadă de mere, pepinieră de altoi']
+  area_ha numeric(10,4)
+  planting_year int
+  fixed_asset_id uuid [ref: >? fixed_assets.id, note: 'livada ca activ pe termen lung, dacă e cazul']
+}
+
+Table harvests {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  crop_id uuid [not null, ref: > crops.id]
+  document_id uuid [not null, ref: > documents.id, note: 'documentul de recoltare / ieșire din producție']
+  season int [not null]
+  item_id uuid [not null, ref: > items.id, note: 'producția obținută (ex. mere, altoi)']
+  quantity numeric(15,3) [not null]
+  warehouse_id uuid [ref: >? warehouses.id]
+}
+
+// ───────────────────── Asistentul de procese: sarcini și mesaje ─────────────────────
+
+Table task_templates {
+  id uuid [pk]
+  organization_id uuid [ref: >? organizations.id, note: 'null = șablon standard pe profil']
+  feature_code varchar [ref: >? features.code, note: 'profilul pentru care se propune (payroll, vat, retail...)']
+  title varchar [not null, note: 'ex. Trimite administratorului impozitele lunii']
+  recurrence varchar [not null, note: 'regulă RRULE: FREQ=MONTHLY;BYMONTHDAY=5']
+  action_type varchar [note: 'create_folders / open_bank_import / draft_message / open_report / payment_order / none']
+  action_params jsonb [note: 'ex. structura folderelor, destinatarii mesajului']
+  remind_days_before int [default: 2]
+  is_active boolean [default: true]
+  created_by_ai boolean [default: false]
+}
+
+Table tasks {
+  id uuid [pk]
+  organization_id uuid [ref: >? organizations.id, note: 'null = sarcină personală']
+  template_id uuid [ref: >? task_templates.id]
+  owner_user_id uuid [not null, ref: > users.id]
+  is_private boolean [default: false, note: 'vizibilă doar proprietarului']
+  title varchar [not null]
+  due_date date [not null]
+  period date [note: 'luna la care se referă']
+  status varchar [default: 'open', note: 'open / done / skipped / overdue']
+  done_at timestamp
+  linked_document_id uuid [ref: >? documents.id, note: 'ex. extrasul importat care a închis sarcina']
+  indexes {
+    (owner_user_id, status, due_date)
+    (organization_id, period)
+  }
+}
+
+Table org_contacts {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  name varchar [not null]
+  role varchar [note: 'administrator / director / contabil...']
+  phone_enc varchar
+  email varchar
+  telegram_chat_id varchar
+  viber_id varchar
+  preferred_channel varchar [note: 'telegram / viber / email']
+}
+
+Table notification_channels {
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
+  channel varchar [not null, note: 'in_app / telegram / email']
+  address_enc varchar [note: 'chat_id Telegram / adresa e-mail']
+  quiet_hours varchar [note: 'ex. 20:00-08:00']
+  is_active boolean [default: true]
+}
+
+Table outbound_messages {
+  id uuid [pk]
+  organization_id uuid [not null, ref: > organizations.id]
+  task_id uuid [ref: >? tasks.id]
+  contact_id uuid [not null, ref: > org_contacts.id]
+  channel varchar [not null]
+  body text [not null, note: 'textul generat din date (ex. CAS, CAM, impozit, termene)']
+  status varchar [default: 'draft', note: 'draft / approved / sent / failed — trimis doar după aprobare']
+  approved_by uuid [ref: >? users.id]
+  sent_at timestamp
+}
+
+// ───────────────────── Evidența personală (privată) ─────────────────────
+
+Table user_person_links {
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
+  organization_id uuid [not null, ref: > organizations.id]
+  person_id uuid [not null, ref: > persons.id, note: 'utilizatorul ca angajat în acea firmă']
+  indexes {
+    (user_id, organization_id) [unique]
+  }
+  Note: 'privat: RLS user_id = utilizatorul curent'
+}
+
+Table personal_checks {
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
+  organization_id uuid [not null, ref: > organizations.id]
+  period date [not null]
+  salary_calculated boolean [default: false]
+  salary_paid boolean [default: false]
+  net_amount numeric(15,2)
+  checked_at timestamp
+  indexes {
+    (user_id, organization_id, period) [unique]
+  }
+  Note: 'privat: rezultatul verificării automate la login, vizibil doar utilizatorului'
+}

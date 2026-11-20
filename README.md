@@ -1,6 +1,6 @@
-# ContaHub ONG
+# ContaHub
 
-Sistem web de contabilitate pentru organizații necomerciale din Republica Moldova, care înlocuiește 1C:Contabilitate ONG păstrând modul de lucru familiar din 1C 8.3, cu asistență AI. Rulează pe server prin Docker, pentru mai mulți contabili simultan.
+Sistem web de contabilitate pentru ONG-uri, SRL-uri (inclusiv plătitori de TVA, comerț, alimentație publică, cazare), întreprinderi individuale și gospodării țărănești din Republica Moldova. Înlocuiește 1C:Contabilitate păstrând modul de lucru familiar din 1C 8.3, cu asistență AI. La crearea bazei se alege tipul firmei, iar aplicația pornește doar modulele potrivite. Rulează pe server prin Docker, pentru mai mulți contabili simultan.
 
 Proiect pentru examenul **Programare Web 2** și teza de licență.
 
@@ -28,6 +28,7 @@ Proiect pentru examenul **Programare Web 2** și teza de licență.
 | [docs/10-strategie-produs.md](docs/10-strategie-produs.md) | Aplicație nouă vs extensie 1C, unde stau datele, stabilitate |
 | [docs/11-reguli-contabile-ong.md](docs/11-reguli-contabile-ong.md) | Regulile contabile ONG și formulele Dt/Kt, cu surse legislative |
 | [docs/12-normalizare-performanta-bd.md](docs/12-normalizare-performanta-bd.md) | Normalizarea BD (1NF–4NF), denormalizări intenționate, viteză |
+| [docs/13-tipuri-entitati-profiluri.md](docs/13-tipuri-entitati-profiluri.md) | Tipurile de firme (ONG, SRL, ÎI, GȚ), expertul „Bază nouă”, profilurile de funcționalitate |
 | [design/prototip.html](design/prototip.html) | Prototip clicabil (se deschide în browser) |
 | [database/schema.dbml](database/schema.dbml) | Schema BD — se lipește în [dbdiagram.io](https://dbdiagram.io/d) |
 

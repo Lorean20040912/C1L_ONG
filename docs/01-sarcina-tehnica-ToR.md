@@ -1,15 +1,15 @@
 # Sarcina tehnică (Terms of Reference) — Task 1
 
-**Denumirea proiectului:** ContaHub ONG — sistem web de contabilitate pentru organizații necomerciale, înlocuitor al 1C:Contabilitate ONG, cu asistență AI
+**Denumirea proiectului:** ContaHub — sistem web de contabilitate pentru ONG-uri, SRL-uri, întreprinderi individuale și gospodării țărănești din Republica Moldova, înlocuitor al 1C:Contabilitate, cu asistență AI
 **Tip:** proiect examen „Programare Web 2” + teză de licență
-**Autor:** _[numele studentului]_
-**Versiune:** 0.2 · noiembrie 2026
+**Autor:** Lorean Mândrescu
+**Versiune:** 0.3 · noiembrie 2026
 
 ---
 
 ## 1. Context și problema
 
-În organizație, mai mulți contabili (sub coordonarea contabilului-șef) țin evidența ONG-urilor în configurația 1C:Contabilitate pentru ONG (platforma 1C:Întreprindere 8.3). Logica de bază și interfața sunt cunoscute și funcționează, dar:
+În organizație, mai mulți contabili (sub coordonarea contabilului-șef) țin evidența mai multor firme în 1C:Întreprindere 8.3: ONG-uri (configurația 1C:Contabilitate pentru ONG), SRL-uri (comerț cu bunuri de uz casnic, magazin alimentar cu fast-food, magazin alimentar plătitor de TVA, bază de odihnă), o întreprindere individuală (magazin alimentar) și o gospodărie țărănească (pomicultură). Logica de bază și interfața sunt cunoscute și funcționează, dar:
 
 | # | Problema | Consecința |
 |---|----------|-----------|
@@ -19,10 +19,11 @@
 | P4 | Cotele de impozit și plafoanele se schimbă anual; actualizarea depinde de furnizor. | Risc de calcul cu cota veche. |
 | P5 | Integrarea 1C cu alte sisteme (CSV/DBF/TXT) este instabilă. | Automatizarea nu e posibilă. |
 | P6 | 1C cere licențe per utilizator și instalare pe fiecare calculator / RDP. | Cost și administrare. |
+| P7 | Pentru fiecare tip de firmă există altă configurație 1C, cu alte reguli și alte erori; contabilul trece între programe diferite. | Lucru fragmentat, întreținere dublă. |
 
 ## 2. Scopul proiectului
 
-Crearea unui **sistem web de contabilitate care înlocuiește complet 1C** pentru ONG-uri:
+Crearea unui **sistem web de contabilitate care înlocuiește complet 1C** pentru ONG-uri, SRL-uri (inclusiv plătitori de TVA, comerț, alimentație publică, cazare), întreprinderi individuale și gospodării țărănești — **un singur nucleu comun și profiluri de funcționalitate** alese la crearea bazei (vezi [13-tipuri-entitati-profiluri.md](13-tipuri-entitati-profiluri.md)):
 - **păstrează modul de lucru din 1C 8.3** (secțiuni, liste de documente, formulare, butoane „Înregistrează și închide”, „Dt/Kt”, rapoarte de tip balanță de verificare), ca contabilii să lucreze fără reinstruire;
 - **păstrează logica contabilă** (planul de conturi, înregistrări contabile, regulile de calcul) cunoscută din configurația actuală, corectând erorile cunoscute;
 - **preia toate datele existente din 1C** (cataloage, solduri, documente, istoricul înregistrărilor);
@@ -42,6 +43,13 @@ Crearea unui **sistem web de contabilitate care înlocuiește complet 1C** pentr
 O instanță deservește **mai multe organizații**; fiecare contabil vede doar organizațiile atribuite.
 
 ## 4. Cerințe funcționale
+
+### M00. Bazele și profilurile de funcționalitate
+- F00.1 **Pagina de start „Bazele mele”** (ca lista de baze din 1C): bazele la care utilizatorul are acces, cu tipul firmei; butoanele „Bază nouă” și „Importă din 1C”.
+- F00.2 **Expertul „Bază nouă”**: IDNO și date de identificare → forma juridică (SRL, SA, ÎI, GȚ, ONG) → plătitor de TVA (de la ce dată) → regimul fiscal propus automat → genurile de activitate (comerț cu amănuntul/ridicata, alimentație publică, producție, servicii, cazare, agricultură, granturi) → are salariați → sursa datelor (goală / 1C / Excel) → rezumatul modulelor care vor fi pornite.
+- F00.3 La creare se aplică automat: planul de conturi potrivit (sau partida simplă pentru ÎI/GȚ), secțiunile și documentele interfeței, regulile de înregistrare, rapoartele din calendar, cotele și regimul fiscal.
+- F00.4 **Administrare → Funcționalitate**: orice opțiune se poate schimba ulterior, cu data de la care se aplică (ex. devenirea plătitor de TVA).
+- F00.5 Profilurile și legătura lor cu modulele sunt **date**, nu cod — un gen de activitate nou se adaugă fără programare.
 
 ### M0. Interfața de tip 1C 8.3
 - F0.1 Panou de secțiuni în stânga, ca în „Бухгалтерия для Молдовы + НКО 3.0”: *Principal, Conducătorului, Bancă și casă, Vânzări, Achiziții, Depozit, Mijloace fixe și INM, Salarii și personal, Operațiuni, Rapoarte, Cataloage, Administrare, ONG*.
@@ -140,6 +148,42 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 - F8.5 Memorie de organizație: regulile explicate asistentului („la noi chiria se pune pe linia 3.4”) se salvează și se folosesc data viitoare; pot fi văzute și șterse.
 - F8.6 Toate conversațiile și acțiunile asistentului sunt în jurnalul de audit.
 
+### M11. Stocuri, comerț, alimentație publică, TVA (profil SRL)
+- F11.1 **Nomenclator** (mărfuri, materiale, produse, servicii), **depozite**, intrări / ieșiri / transferuri / inventariere; metoda de evaluare a stocurilor din politica contabilă (FIFO / cost mediu ponderat).
+- F11.2 **Comerț cu amănuntul**: case de marcat, raportul Z / vânzarea cu amănuntul pe zi, adaos comercial, descărcarea stocului la vânzare.
+- F11.3 **Alimentație publică / fast-food**: **rețete și fișe de calculație** (ingrediente, cantități, pierderi tehnologice); la vânzarea unui produs se descarcă automat materia primă; calculul costului.
+- F11.4 **TVA**: facturi fiscale emise/primite, e-Factura, registrele de cumpărări și vânzări, TVA deductibil / nedeductibil, TVA la importul de servicii, **declarația TVA**.
+- F11.5 **Cazare** (bază de odihnă): servicii de cazare și alimentație, unități de cazare, taxa locală pentru unitățile de cazare.
+
+### M12. Întreprindere individuală (partidă simplă)
+- F12.1 Aceleași documente primare, dar înregistrare în **partidă simplă**: venit = încasare, cheltuială = plată, cu categoria deductibilă / nedeductibilă.
+- F12.2 **Registrul-jurnal de venituri și cheltuieli**, registrul mijloacelor fixe, lista de inventar — generate automat.
+- F12.3 Declarația pe venit a ÎI, completată din registru; trecerea la partidă dublă cu solduri de deschidere, la nevoie.
+
+### M13. Gospodărie țărănească
+- F13.1 **Membrii GȚ** și cotele lor; distribuirea venitului rămas după impozitare, cu reținerea impozitului la distribuire.
+- F13.2 **Producția agricolă**: livezi / culturi (suprafață, an de plantare), recolta, consumul de materiale și lucrări pe culturi, costul producției.
+- F13.3 Impozitul specific GȚ (cota din `tax_rates`, cu perioadă) și darea de seamă **UNIF25** (secțiunea GȚ) / VEN12.
+
+### M14. Asistentul de procese: sarcini și amintiri pentru toată contabilitatea
+- F14.1 Pe lângă rapoarte, aplicația ține **toate procesele lunare** ale fiecărei firme ca sarcini recurente, de exemplu:
+  - până pe 5: trimite administratorilor lista impozitelor de achitat;
+  - la început de lună: scanează facturile lunii și pune-le în folderul lunii;
+  - descarcă extrasul bancar și pune-l în folder / importă-l;
+  - achită lumina, internetul, chiria pentru firma X;
+  - închiderea lunii, calculul salariilor, inventarierea anuală.
+- F14.2 **Folderele lunii se creează singure** pe 1 ale lunii în sursa de documente (Drive / folder local): `Contabilitate / <Firma> / <AAAA-LL> / Facturi`, `/ Bancă`, `/ Salarii`, `/ Altele`.
+- F14.3 **Asistentul analizează contabilitatea și propune sarcini**: plăți care se repetă lunar (ex. aceeași factură de energie în fiecare lună), extrase bancare lipsă pentru luna curentă, documente scanate necontabilizate, rapoarte cu termen apropiat. Propunerea devine sarcină doar după confirmare.
+- F14.4 Fiecare sarcină poate avea o **acțiune** dintr-un clic: deschide importul bancar, deschide folderul, pregătește ordinul de plată, generează mesajul pentru administrator.
+- F14.5 **Mesaje către administratori**: aplicația calculează sumele (impozite, contribuții, termene) și pregătește textul; utilizatorul îl verifică și apasă „Trimite” (Telegram, Viber, e-mail) sau îl copiază. **Niciun mesaj nu pleacă fără confirmarea utilizatorului.**
+- F14.6 Amintirile apar pe pagina inițială, ca notificare în aplicație și, la alegere, în Telegram / e-mail; fiecare utilizator își alege canalele și ora.
+
+### M15. Evidența personală a utilizatorului (privată)
+- F15.1 Contabilul care lucrează (cu salariu) la mai multe firme își poate lega profilul de persoana lui din fiecare bază.
+- F15.2 La intrare, aplicația verifică **automat** în salariile și plățile fiecărei firme dacă salariul lunii a fost calculat și plătit, și îi amintește: „Octombrie: ✓ AO CARTERA, ✗ „Casa Bună” SRL — salariul nu a fost plătit”.
+- F15.3 Funcția și datele ei sunt **vizibile doar utilizatorului respectiv** — nici administratorul, nici ceilalți contabili nu le văd; verificarea folosește doar datele la care utilizatorul are deja acces.
+- F15.4 Utilizatorul își poate adăuga și amintiri personale proprii (private), separate de sarcinile firmelor.
+
 ### M9. Importul bugetului proiectului din fișier
 - F9.1 La câștigarea proiectului, contabilul încarcă **bugetul aprobat** (Excel, de regulă în formatul donatorului; și PDF/Word).
 - F9.2 AI-ul recunoaște structura: categorii și **linii de buget** (cod, denumire, unitate, cantitate, cost unitar, total), **contribuția donatorului / cofinanțarea / contribuția proprie**, valuta, perioada, **graficul tranșelor** (date și sume), după caz bugetul pe ani sau pe luni.
@@ -215,6 +259,10 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 | E9 | Granturi, execuția bugetului, rapoarte donatori pe șabloane oricare + pachetul de documente pe linii de buget |
 | E10 | Rapoarte fiscale IPC21, 5-CON, ONG17 + calendarul raportărilor |
 | E11 | Monitor legislativ, testare, documentare, susținere |
+| E12 | Expertul „Bază nouă” și profilurile de funcționalitate |
+| E13 | Profil SRL: stocuri, casă de marcat, TVA, rețete pentru alimentație publică (după susținere: cazare) |
+| E14 | Profil ÎI (partidă simplă) și GȚ (membri, producție agricolă, UNIF25) — dezvoltarea produsului după susținere |
+| E15 | Asistentul de procese (sarcini recurente, foldere lunare, mesaje către administratori) și evidența personală privată |
 
 ## 8. Criterii de acceptare
 
@@ -233,6 +281,11 @@ Factură primită, factură emisă, ordin de plată (intrare/ieșire), extras ba
 13. O cerere în chat „mută butonul Dt/Kt la începutul barei” schimbă interfața imediat și poate fi anulată.
 14. Bugetul unui proiect încărcat din Excel creează liniile de buget și tranșele cu totalurile egale cu fișierul, fără introducere manuală.
 15. O cerere de modificare făcută prin asistent ajunge într-o versiune beta, iar la „Renunță” versiunea stabilă rămâne neschimbată.
+16. La crearea unei baze pentru un SRL plătitor de TVA cu comerț cu amănuntul se pornesc automat stocurile, casele de marcat, TVA și declarația TVA în calendar, iar secțiunea ONG nu apare.
+17. Pentru o ÎI, aceleași documente de plată generează registrul-jurnal de venituri și cheltuieli fără înregistrări Dt/Kt.
+18. Pe 1 ale lunii, folderele lunii se creează singure, iar pe pagina inițială apar sarcinile lunii pentru fiecare firmă.
+19. Mesajul cu impozitele pentru administrator se trimite doar după ce utilizatorul apasă „Trimite”.
+20. Amintirea despre salariul personal apare doar în profilul utilizatorului; un alt utilizator (inclusiv administratorul) nu o vede.
 
 ## 9. În afara scopului (versiunea 1)
 
