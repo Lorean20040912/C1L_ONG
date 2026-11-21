@@ -41,7 +41,9 @@ def _entries_in_payments(db: Session, period: PayrollPeriod) -> int:
         db.scalars(
             select(PaymentOrderLine.id)
             .join(PayrollEntry, PayrollEntry.id == PaymentOrderLine.payroll_entry_id)
-            .where(PayrollEntry.period_id == period.id)
+            .join(PaymentOrder, PaymentOrder.id == PaymentOrderLine.payment_order_id)
+            .join(Document, Document.id == PaymentOrder.document_id)
+            .where(PayrollEntry.period_id == period.id, Document.deletion_mark.is_not(True))
             .limit(1)
         ).all()
     )
@@ -196,6 +198,8 @@ def create_grouped_payment(
         if grant is None:
             raise PostingError("Grantul nu aparține organizației")
 
+    # blocarea perioadei: două cereri simultane nu pot include aceleași sume în două ordine
+    get_period(db, organization_id, data.year, data.month, lock=True)
     rows = period_entries(db, organization_id, data.year, data.month)
     if not rows:
         raise PostingError(f"Nu există calculul salariului pe {data.month:02d}.{data.year}")

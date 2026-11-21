@@ -63,16 +63,21 @@ class PersonIn(BaseModel):
 class PersonOut(BaseModel):
     id: uuid.UUID
     full_name: str
-    idnp: str
+    idnp: str | None = None  # complet doar la GET /persons/{id} (roluri de înregistrare) și la salvare
     idnp_masked: str
     birth_date: date | None
     cpas: str | None
 
 
-def _person_out(p: Person) -> PersonOut:
+def _person_out(p: Person, full: bool = False) -> PersonOut:
     idnp = crypto.decrypt(p.idnp_enc)
     return PersonOut(
-        id=p.id, full_name=p.full_name, idnp=idnp, idnp_masked=crypto.mask(idnp), birth_date=p.birth_date, cpas=p.cpas
+        id=p.id,
+        full_name=p.full_name,
+        idnp=idnp if full else None,
+        idnp_masked=crypto.mask(idnp),
+        birth_date=p.birth_date,
+        cpas=p.cpas,
     )
 
 
@@ -98,6 +103,13 @@ def list_persons(ctx: OrgContext = Depends(get_org_context), db: Session = Depen
     return [_person_out(p) for p in persons]
 
 
+@router.get("/persons/{person_id}", response_model=PersonOut)
+def get_person(person_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)):
+    """IDNP-ul complet doar pentru cine poate modifica persoana (formularul de editare)."""
+    ctx.require(POSTING_ROLES)
+    return _person_out(_get_person(db, ctx, person_id), full=True)
+
+
 @router.post("/persons", response_model=PersonOut, status_code=status.HTTP_201_CREATED)
 def create_person(body: PersonIn, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)):
     ctx.require(POSTING_ROLES)
@@ -121,7 +133,7 @@ def create_person(body: PersonIn, ctx: OrgContext = Depends(get_org_context), db
         new_values={"full_name": person.full_name},  # IDNP-ul nu intră în audit
     )
     db.commit()
-    return _person_out(person)
+    return _person_out(person, full=True)
 
 
 @router.put("/persons/{person_id}", response_model=PersonOut)
@@ -147,7 +159,7 @@ def update_person(
         new_values={"full_name": person.full_name, "cpas": person.cpas},
     )
     db.commit()
-    return _person_out(person)
+    return _person_out(person, full=True)
 
 
 @router.delete("/persons/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -365,6 +377,13 @@ def update_contract(
     ctx.require(POSTING_ROLES)
     contract = _get_contract(db, ctx, contract_id)
     _validate_contract(db, ctx, body, contract.id)
+    calculated = db.scalar(select(func.count()).select_from(PayrollEntry).where(PayrollEntry.contract_id == contract.id))
+    if calculated and (body.person_id != contract.person_id or body.type != contract.type):
+        # lunile calculate citesc persoana și tipul prin contract: nu le schimbăm retroactiv
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Contractul are salarii calculate: persoana și tipul nu se mai schimbă (încheiați un contract nou)",
+        )
     old = {"type": contract.type.value, "gross_amount": str(contract.gross_amount), "end_date": str(contract.end_date)}
     _apply_contract(contract, body)
     db.flush()
@@ -539,6 +558,7 @@ def list_grouped_payments(
             Document.organization_id == ctx.organization_id,
             PaymentOrder.kind == "grouped_tax",
             PaymentOrder.id.in_(order_ids),
+            Document.deletion_mark.is_not(True),
         )
         .order_by(Document.doc_date, Document.doc_number)
     ).all()
