@@ -18,6 +18,7 @@ from app.grants.router import router as grants_router
 from app.month_close.router import router as month_close_router
 from app.posting.admin_router import router as accounting_admin_router
 from app.posting.router import router as posting_router
+from app.reports.router import router as reports_router
 from app.posting.rules_router import router as rules_router
 from app.workspaces.router import router as workspaces_router
 
@@ -44,6 +45,7 @@ app.include_router(month_close_router)
 app.include_router(grants_admin_router)
 app.include_router(accounting_admin_router)
 app.include_router(members_router)
+app.include_router(reports_router)
 
 
 @app.get("/health", tags=["sistem"])
