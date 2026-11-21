@@ -57,8 +57,8 @@ export const SECTIONS: Section[] = [
     icon: "♡",
     title: "Granturi și ONG",
     groups: {
-      Granturi: ["Proiecte / granturi", "Linii de buget", "Donatori"],
-      Documente: ["Finanțare primită", "Repartizarea cheltuielilor"],
+      Granturi: ["Proiecte / granturi", "Linii de buget", "Versiuni și tranșe", "Donatori"],
+      Documente: ["Finanțare primită", "Distribuirea stocurilor", "Repartizarea cheltuielilor"],
       Rapoarte: ["Execuția bugetului", "Pachet pentru donator", "5-CON", "ONG17"],
       Setări: ["Articole de cheltuieli", "Date pentru rapoarte"],
     },

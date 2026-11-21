@@ -10,6 +10,9 @@ import { MembersScreen } from "../screens/admin/MembersScreen";
 import { PeriodsScreen } from "../screens/admin/PeriodsScreen";
 import { PolicyScreen } from "../screens/admin/PolicyScreen";
 import { RulesScreen } from "../screens/admin/RulesScreen";
+import { DonorsScreen } from "../screens/grants/DonorsScreen";
+import { GrantAdvancedScreen } from "../screens/grants/GrantAdvancedScreen";
+import { StockDistributionScreen } from "../screens/grants/StockDistributionScreen";
 import { BudgetExecution } from "../screens/BudgetExecution";
 import { ManualOperation } from "../screens/ManualOperation";
 import { TrialBalance } from "../screens/TrialBalance";
@@ -264,6 +267,12 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <CostItemsScreen />;
     case "reporting-data":
       return <ReportingDataScreen />;
+    case "donors":
+      return <DonorsScreen />;
+    case "grant-advanced":
+      return <GrantAdvancedScreen />;
+    case "stock-distribution":
+      return <StockDistributionScreen />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:

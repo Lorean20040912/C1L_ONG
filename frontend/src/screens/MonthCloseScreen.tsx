@@ -4,6 +4,7 @@ import type { DepreciationPreview, MonthClose, StepPreview } from "../api/types"
 import { grantLabel, useCatalogs } from "../catalog/useCatalogs";
 import { day, money } from "../lib/format";
 import { useShell } from "../shell/tabs";
+import { AllocationPanel } from "./grants/AllocationPanel";
 
 const STATUS: Record<string, [string, string]> = {
   done: ["✓", "ok"],
@@ -165,6 +166,19 @@ export function MonthCloseScreen() {
             );
           })}
         </ul>
+      )}
+
+      {state?.steps.some((s) => s.step === "grant_allocation" && s.implemented) && (
+        <AllocationPanel
+          base={base}
+          busy={busy}
+          run={run}
+          onState={(st) => {
+            setState(st);
+            setStepPreview(null);
+          }}
+          onPreview={setStepPreview}
+        />
       )}
 
       {stepPreview && (
