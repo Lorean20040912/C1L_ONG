@@ -9,6 +9,8 @@ from app.auth.router import router as auth_router
 from app.catalogs.router import router as catalogs_router
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.documents.invoices_router import router as invoices_router
+from app.documents.payments_router import router as payments_router
 from app.documents.router import router as documents_router
 from app.posting.router import router as posting_router
 from app.posting.rules_router import router as rules_router
@@ -28,6 +30,8 @@ app.include_router(auth_router)
 app.include_router(catalogs_router)
 app.include_router(workspaces_router)
 app.include_router(documents_router)
+app.include_router(invoices_router)
+app.include_router(payments_router)
 app.include_router(posting_router)
 app.include_router(rules_router)
 
