@@ -1,20 +1,24 @@
 """Date demonstrative pentru dezvoltare: `python -m app.seed`.
 
 Creează utilizatorul din DEMO_EMAIL / DEMO_PASSWORD (dacă sunt setate în .env)
-și o bază cu o organizație fictivă, conturile ONG și politica contabilă. Rulat de mai multe ori,
+și o bază cu o organizație fictivă, conturile ONG, politica contabilă, un grant cu linii de buget,
+un furnizor și un cont bancar. Rulat de mai multe ori,
 nu dublează nimic.
 """
 
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import select
 
 from app.auth.models import OrganizationMember, User
-from app.catalogs.models import Account
+from app.bank.models import BankAccount
+from app.catalogs.models import Account, Counterparty
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.enums import AccountKind, EntityType, UserRole
 from app.core.security import hash_password
+from app.grants.models import BudgetLine, Grant
 from app.posting.models import AccountingPolicy
 from app.workspaces.models import Organization, Workspace
 
@@ -85,6 +89,46 @@ def run() -> None:
                 valid_from=date(2026, 1, 1),
                 grant_receivable_account_id=accounts["234.4"].id,
                 grant_recognition="on_signing",
+            )
+        )
+        grant = Grant(
+            organization_id=org.id,
+            code="DEMO-2026-01",
+            title="Proiect demonstrativ",
+            funding_type="grant",
+            currency="MDL",
+            total_amount=Decimal(120000),
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+        )
+        own = Grant(
+            organization_id=org.id,
+            code="COT-2026",
+            title="Cotizații membri",
+            funding_type="cotizații",
+            currency="MDL",
+            total_amount=Decimal(10000),
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+        )
+        db.add_all([grant, own])
+        db.flush()
+        for g, code, name, planned in [
+            (grant, "1.1", "Salarii personal proiect", 60000),
+            (grant, "2.1", "Echipament", 30000),
+            (grant, "3.2", "Comunicații", 6000),
+            (grant, "4.2", "Consumabile", 4000),
+            (own, "1", "Cheltuieli administrative", 10000),
+        ]:
+            db.add(BudgetLine(grant_id=g.id, code=code, name=name, planned_amount=Decimal(planned)))
+        db.add(Counterparty(organization_id=org.id, name="„Furnizor Exemplu” SRL", idno="1000000000002"))
+        db.add(
+            BankAccount(
+                organization_id=org.id,
+                iban_enc="MD00XX000000000000000001",
+                bank_name="Banca demonstrativă",
+                currency="MDL",
+                account_id=accounts["242"].id,
             )
         )
         db.commit()
