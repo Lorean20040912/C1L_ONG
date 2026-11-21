@@ -7,6 +7,7 @@ import { day, money, today } from "../../lib/format";
 import { useAction } from "../../lib/useAction";
 import { POSTING_ROLES, can, useShell } from "../../shell/tabs";
 import { Messages } from "../admin/Messages";
+import { TimesheetPanel } from "./TimesheetPanel";
 
 /** „Calcul salariu”: pasul din închiderea lunii, statul de plată și plata cumulată a impozitelor (docs/09 §3). */
 export function PayrollScreen() {
@@ -98,6 +99,7 @@ export function PayrollScreen() {
           </button>
         )}
       </div>
+      <TimesheetPanel orgId={orgId} year={year} month={month} editable={editable && !sheet?.is_closed} />
       <div className="hint">
         Calculul e pasul „Calculul salariului” din închiderea lunii: CIM — CNAS, CNAM, impozit cu scutiri doar la locul de bază (cod SAL); contract
         civil — reținere fără scutiri (cod PL). Cheltuielile se repartizează pe granturi după contract.

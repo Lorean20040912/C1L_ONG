@@ -28,7 +28,7 @@ from app.core.enums import ContractType, SubcontoType
 from app.documents.posting import funding_of
 from app.grants.models import BudgetLine, Grant
 from app.month_close.depreciation import month_bounds
-from app.payroll.models import Contract, Person
+from app.payroll.models import Contract, PayrollInput, Person
 from app.posting.engine import AnalyticsInput, PostingError
 from app.posting.rules import GeneratedLine, OperationInput, build_lines
 from app.taxes.models import TaxRate
@@ -123,6 +123,7 @@ class ContractCalc:
     details: dict
     parts: list[FundingPart] = field(default_factory=list)
     error: str | None = None
+    sick_benefit: Decimal = Decimal(0)  # plătită de CNAS: doar se raportează (IPC21 c10), nu intră în brut
 
 
 def calculate_contract(db: Session, contract: Contract, year: int, month: int) -> ContractCalc | None:
@@ -140,9 +141,24 @@ def calculate_contract(db: Session, contract: Contract, year: int, month: int) -
         details["rates"][code] = {"id": str(r.id), "value": str(r.value), "legal_basis": r.legal_basis}
         return r
 
+    entry_input = db.scalar(
+        select(PayrollInput).where(
+            PayrollInput.contract_id == contract.id, PayrollInput.year == year, PayrollInput.month == month
+        )
+    )
+    sick_benefit = money(entry_input.sick_benefit) if entry_input and entry_input.sick_benefit else Decimal(0)
+    if sick_benefit:
+        details["sick_benefit"] = str(sick_benefit)
     if ctype == ContractType.cim:
         month_days = working_days(start, end)
         worked = working_days(period_start, period_end)
+        if entry_input is not None and entry_input.worked_days is not None:
+            if entry_input.worked_days > worked:
+                raise PostingError(
+                    f"pontaj: {entry_input.worked_days} zile lucrate, dar perioada contractului în lună are {worked} zile lucrătoare"
+                )
+            worked = entry_input.worked_days
+            details["timesheet"] = True
         details["working_days"] = {"month": month_days, "worked": worked}
         gross = money(contract.gross_amount * worked / month_days) if month_days else Decimal(0)
     else:
@@ -188,6 +204,7 @@ def calculate_contract(db: Session, contract: Contract, year: int, month: int) -
         income_tax=income_tax,
         net=net,
         details=details,
+        sick_benefit=sick_benefit,
     )
     _split_funding(db, calc, start, end)
     return calc

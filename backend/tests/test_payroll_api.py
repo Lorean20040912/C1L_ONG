@@ -205,3 +205,34 @@ def test_izolarea_pe_organizatie(api, db):
     assert client.get(f"{base(org)}/persons", headers=ha).status_code == 200
     assert client.get(f"{base(org)}/persons/{p['id']}", headers=ha).status_code == 403  # IDNP complet — nu
     assert client.post(f"{base(org)}/persons", json={"full_name": "Yu Yi", "idnp": "2002222222222"}, headers=ha).status_code == 403
+
+
+def test_pontaj_si_indemnizatie_de_boala(api):
+    client, h, org, grants, lines, _ = api
+    p = new_person(client, h, org)
+    c = client.post(f"{base(org)}/contracts", json=contract_body(p["id"], grants, lines), headers=h).json()
+    url = f"{base(org)}/payroll-inputs/2026/11"
+    listed = client.get(url, headers=h)
+    assert listed.status_code == 200, listed.text
+    listed = listed.json()
+    assert listed[0]["working_days"] == 21 and listed[0]["worked_days"] is None
+    # peste zilele lucrătoare ale lunii — refuzat; valid → brut proporțional (10 000 × 10 / 21)
+    assert client.put(f"{url}/{c['id']}", json={"worked_days": 22}, headers=h).status_code == 422
+    r = client.put(f"{url}/{c['id']}", json={"worked_days": 10, "sick_benefit": "150.00"}, headers=h)
+    assert r.status_code == 200 and r.json()["worked_days"] == 10
+    mc = f"{base(org)}/month-close/2026/11/steps/payroll"
+    assert client.post(f"{mc}/preview", headers=h).json()["total"] == "4761.90"
+    assert client.post(f"{mc}/run", headers=h).status_code == 200
+    entry = client.get(f"{base(org)}/payroll/2026/11", headers=h).json()["entries"][0]
+    assert entry["gross"] == "4761.90" and entry["sick_benefit"] == "150.00"
+    assert entry["calc_details"]["timesheet"] is True
+    nominal = client.get(f"{base(org)}/reports/ipc21/2026/11", headers=h).json()["nominal"][0]
+    assert nominal["sick_benefit"] == "150.00"
+    # fără pontaj calculul rămâne cel obișnuit
+    assert client.put(f"{url}/{c['id']}", json={"sick_benefit": "0"}, headers=h).status_code == 200
+    assert client.post(f"{mc}/preview", headers=h).json()["total"] == "10000.00"
+    civil = new_person(client, h, org, "Rusu Maria", "2009876543210")
+    cc = client.post(f"{base(org)}/contracts", json={
+        "person_id": civil["id"], "type": "civil", "number": "C-1", "start_date": "2026-01-01", "gross_amount": "2000",
+        "funding": contract_body(p["id"], grants, lines)["funding"]}, headers=h).json()  # fmt: skip
+    assert client.put(f"{url}/{cc['id']}", json={"worked_days": 5}, headers=h).status_code == 422

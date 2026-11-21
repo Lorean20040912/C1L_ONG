@@ -19,8 +19,9 @@ from app.core.db import get_db
 from app.core.enums import ContractType
 from app.documents.models import Document, PaymentOrder, PaymentOrderLine
 from app.payroll import ipc21
-from app.payroll.calc import ensure_budget_line
-from app.payroll.models import Contract, ContractFunding, ExemptionClaim, IndividualPayment, PayrollEntry, Person
+from app.payroll.calc import active_contracts, ensure_budget_line, working_days
+from app.month_close.depreciation import month_bounds
+from app.payroll.models import Contract, ContractFunding, ExemptionClaim, IndividualPayment, PayrollEntry, PayrollInput, Person
 from app.payroll.service import (
     TAX_KINDS,
     GroupedPaymentInput,
@@ -440,6 +441,7 @@ class PayrollEntryOut(BaseModel):
     taxable_income: Decimal | None
     income_tax: Decimal | None
     net: Decimal | None
+    sick_benefit: Decimal | None = None
     calc_details: dict | None
 
 
@@ -469,7 +471,7 @@ def payroll_period(year: int, month: int, ctx: OrgContext = Depends(get_org_cont
                 k: getattr(r.entry, k)
                 for k in (
                     "income_code", "period_start", "period_end", "gross", "cnas_employer", "cnam_employee",
-                    "personal_exemption", "dependents_exemption", "taxable_income", "income_tax", "net", "calc_details",
+                    "personal_exemption", "dependents_exemption", "taxable_income", "income_tax", "net", "sick_benefit", "calc_details",
                 )
             },
         )  # fmt: skip
@@ -599,6 +601,101 @@ def delete_grouped(document_id: uuid.UUID, ctx: OrgContext = Depends(get_org_con
         db.rollback()
         raise http_error(exc) from None
     db.commit()
+
+
+# ───────────────────────── pontaj și indemnizații de boală ─────────────────────────
+
+
+class PayrollInputIn(BaseModel):
+    worked_days: int | None = Field(default=None, ge=0, le=31, description="CIM: zile lucrate; gol = toate zilele lucrătoare")
+    sick_benefit: Decimal = Field(default=Decimal(0), ge=0, max_digits=15, decimal_places=2)
+
+
+class PayrollInputOut(BaseModel):
+    contract_id: uuid.UUID
+    person_name: str
+    contract_type: ContractType
+    contract_number: str | None
+    working_days: int  # zilele lucrătoare ale perioadei contractului în lună
+    worked_days: int | None
+    sick_benefit: Decimal
+
+
+def _available_days(contract: Contract, start: date, end: date) -> int:
+    return working_days(max(start, contract.start_date), min(end, contract.end_date) if contract.end_date else end)
+
+
+@router.get("/payroll-inputs/{year}/{month}", response_model=list[PayrollInputOut])
+def list_payroll_inputs(
+    year: int, month: int, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+) -> list[PayrollInputOut]:
+    start, end = month_bounds(year, month)
+    contracts = active_contracts(db, ctx.organization_id, start, end)
+    saved = {
+        i.contract_id: i
+        for i in db.scalars(
+            select(PayrollInput).where(
+                PayrollInput.year == year,
+                PayrollInput.month == month,
+                PayrollInput.contract_id.in_([c.id for c in contracts]),
+            )
+        )
+    }
+    return [
+        PayrollInputOut(
+            contract_id=c.id, person_name=c.person.full_name, contract_type=c.type, contract_number=c.number,
+            working_days=_available_days(c, start, end),
+            worked_days=saved[c.id].worked_days if c.id in saved else None,
+            sick_benefit=saved[c.id].sick_benefit if c.id in saved else Decimal(0),
+        )  # fmt: skip
+        for c in contracts
+    ]
+
+
+@router.put("/payroll-inputs/{year}/{month}/{contract_id}", response_model=PayrollInputOut)
+def put_payroll_input(
+    year: int,
+    month: int,
+    contract_id: uuid.UUID,
+    body: PayrollInputIn,
+    ctx: OrgContext = Depends(get_org_context),
+    db: Session = Depends(get_db),
+) -> PayrollInputOut:
+    """Pontajul și indemnizația se aplică la următorul calcul al lunii (pasul „Calculul salariului”)."""
+    ctx.require(POSTING_ROLES)
+    contract = _get_contract(db, ctx, contract_id)
+    start, end = month_bounds(year, month)
+    if contract.start_date > end or (contract.end_date and contract.end_date < start):
+        raise _unprocessable("Contractul nu este activ în luna aleasă")
+    available = _available_days(contract, start, end)
+    if body.worked_days is not None:
+        if contract.type != ContractType.cim:
+            raise _unprocessable("Pontajul se aplică doar contractelor individuale de muncă")
+        if body.worked_days > available:
+            raise _unprocessable(f"Perioada contractului în lună are doar {available} zile lucrătoare")
+    period = get_period(db, ctx.organization_id, year, month)
+    if period is not None and period.is_closed:
+        raise _unprocessable(f"Salariile pe {month:02d}.{year} sunt închise")
+    row = db.scalar(
+        select(PayrollInput).where(
+            PayrollInput.contract_id == contract.id, PayrollInput.year == year, PayrollInput.month == month
+        )
+    )
+    old = {"worked_days": row.worked_days, "sick_benefit": str(row.sick_benefit)} if row else None
+    if row is None:
+        row = PayrollInput(contract_id=contract.id, year=year, month=month)
+        db.add(row)
+    row.worked_days, row.sick_benefit = body.worked_days, body.sick_benefit
+    db.flush()
+    write_audit(
+        db, action="update", entity="payroll_inputs", entity_id=row.id, organization_id=ctx.organization_id,
+        user_id=ctx.user.id, old_values=old, new_values={"worked_days": body.worked_days, "sick_benefit": str(body.sick_benefit)},
+    )  # fmt: skip
+    db.commit()
+    return PayrollInputOut(
+        contract_id=contract.id, person_name=contract.person.full_name, contract_type=contract.type,
+        contract_number=contract.number, working_days=available, worked_days=row.worked_days, sick_benefit=row.sick_benefit,
+    )  # fmt: skip
 
 
 # ───────────────────────── cotele ─────────────────────────

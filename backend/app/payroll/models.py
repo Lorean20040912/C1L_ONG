@@ -128,6 +128,27 @@ class PayrollEntry(Base):
     calc_details: Mapped[dict | None] = mapped_column(JSONB)
 
 
+class PayrollInput(Base):
+    """Datele lunii pe contract: pontajul (zile lucrate, CIM) și indemnizația de boală (CNAS, Tabelul 2 c10).
+
+    Izolarea pe organizație se face prin contract → persoană. Valorile se aplică la (re)calculul lunii.
+    """
+
+    __tablename__ = "payroll_inputs"
+    __table_args__ = (
+        UniqueConstraint("contract_id", "year", "month", name="uq_payroll_inputs_contract_month"),
+        CheckConstraint("worked_days IS NULL OR worked_days >= 0", name="ck_payroll_inputs_days"),
+        CheckConstraint("sick_benefit >= 0", name="ck_payroll_inputs_sick"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
+    contract_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("contracts.id", ondelete="CASCADE"))
+    year: Mapped[int] = mapped_column(Integer)
+    month: Mapped[int] = mapped_column(Integer)
+    worked_days: Mapped[int | None] = mapped_column(Integer)  # gol = toate zilele lucrătoare ale perioadei contractului
+    sick_benefit: Mapped[Decimal] = mapped_column(Numeric(15, 2), server_default=text("0"))
+
+
 class IndividualPayment(Base):
     """„Plată către persoană fizică” (chirie FOL, arendă PLs, servicii PL, donație DON pf...)."""
 
