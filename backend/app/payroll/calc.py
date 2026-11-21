@@ -194,16 +194,34 @@ def calculate_contract(db: Session, contract: Contract, year: int, month: int) -
 
 
 def _split_funding(db: Session, calc: ContractCalc, start: date, end: date) -> None:
-    rows = [f for f in calc.contract.funding if _active(f.valid_from, f.valid_to, start, end)]
-    total = sum((f.share_percent for f in rows), Decimal(0))
-    if total != HUNDRED:
+    """Cotele se ponderează cu zilele pe care le acoperă în perioada lucrată a lunii, deci
+    finanțarea se poate schimba de la un grant la altul în mijlocul lunii; în fiecare zi
+    suma cotelor trebuie să fie 100%."""
+    first, last = calc.period_start, calc.period_end
+    rows = [f for f in calc.contract.funding if _active(f.valid_from, f.valid_to, first, last)]
+    day, uncovered = first, []
+    while day <= last:
+        total = sum((f.share_percent for f in rows if _active(f.valid_from, f.valid_to, day, day)), Decimal(0))
+        if total != HUNDRED:
+            uncovered.append((day, total))
+        day += timedelta(days=1)
+    if uncovered:
+        day, total = uncovered[0]
         calc.error = (
-            f"finanțarea contractului acoperă {total}% în {start:%m.%Y} — completați repartizarea pe granturi până la 100%"
+            f"finanțarea contractului acoperă {total}% la {day:%d.%m.%Y} — completați repartizarea pe granturi "
+            "până la 100% în fiecare zi"
         )
         return
+    period_days = (last - first).days + 1
+    weights = []
+    for f in rows:
+        days = (min(last, f.valid_to or last) - max(first, f.valid_from)).days + 1
+        weights.append(f.share_percent * days)
     grants = {g.id: g for g in db.scalars(select(Grant).where(Grant.id.in_({f.grant_id for f in rows})))}
-    calc.parts = [FundingPart(grants[f.grant_id], f.budget_line_id, f.share_percent) for f in rows]
-    shares = [p.share for p in calc.parts]
+    calc.parts = [
+        FundingPart(grants[f.grant_id], f.budget_line_id, money(w / period_days)) for f, w in zip(rows, weights, strict=True)
+    ]
+    shares = weights
     for name in AMOUNTS:
         for part, value in zip(calc.parts, split(getattr(calc, name), shares), strict=True):
             part.amounts[name] = value
