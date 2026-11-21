@@ -3,7 +3,7 @@
 Fiecare lună are un rând `month_close_runs` și un document-registrator; pasul
 executat înregistrează pe acest document, deci Dt/Kt arată exact ce a făcut
 închiderea. Deocamdată e implementat pasul amortizării; ceilalți pași din ToR
-(salarii, repartizare pe granturi, diferențe de curs...) apar ca „în lucru”.
+(salarii, repartizare pe granturi...) apar ca „în lucru”.
 """
 
 import uuid
@@ -12,6 +12,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.bank.fx import fx_plan
 from app.core.enums import DocumentType
 from app.documents.models import Document
 from app.month_close.depreciation import DepreciationPlan, month_bounds, plan
@@ -24,7 +25,7 @@ STEPS = [
     ("depreciation", "Calculul amortizării", True),
     ("payroll", "Calculul salariului", False),
     ("grant_allocation", "Repartizarea cheltuielilor pe granturi", False),
-    ("fx_difference", "Diferențe de curs valutar", False),
+    ("fx_difference", "Diferențe de curs valutar", True),
     ("special_purpose_income", "Recunoașterea veniturilor din mijloace cu destinație specială", True),
     ("account_closing", "Închiderea conturilor", False),
     ("checks", "Verificări (Dt = Kt, solduri negative, documente neînregistrate)", True),
@@ -126,7 +127,7 @@ def revert_depreciation(
 
 # ───────────── ceilalți pași: fiecare pas care înregistrează are documentul lui ─────────────
 
-STEP_DOCUMENT_SUFFIX = {"special_purpose_income": "VEN"}
+STEP_DOCUMENT_SUFFIX = {"special_purpose_income": "VEN", "fx_difference": "CV"}
 
 
 def _step(run: MonthCloseRun | None, step: str) -> dict:
@@ -159,6 +160,9 @@ def preview_step(db: Session, organization_id: uuid.UUID, year: int, month: int,
     if step == "special_purpose_income":
         saved = _step(get_run(db, organization_id, year, month), step).get("document_id")
         return income_plan(db, organization_id, year, month, uuid.UUID(saved) if saved else None)
+    if step == "fx_difference":
+        saved = _step(get_run(db, organization_id, year, month), step).get("document_id")
+        return fx_plan(db, organization_id, year, month, uuid.UUID(saved) if saved else None)
     raise PostingError("Pasul nu este încă implementat")
 
 

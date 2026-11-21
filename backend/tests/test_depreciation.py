@@ -186,7 +186,7 @@ def test_api_inchiderea_lunii_si_fisele(client, db, ong):
 
     state = client.get(f"{base}/month-close/2026/4", headers=h).json()
     assert state["status"] == "draft" and state["steps"][0]["step"] == "depreciation"
-    assert [s["implemented"] for s in state["steps"]].count(True) == 3
+    assert [s["implemented"] for s in state["steps"]].count(True) == 4
 
     preview = client.post(f"{base}/month-close/2026/4/depreciation/preview", headers=h).json()
     assert preview["errors"] and preview["rows"][0]["error"]

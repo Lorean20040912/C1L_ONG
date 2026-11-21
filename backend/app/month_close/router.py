@@ -259,7 +259,7 @@ def update_fixed_asset(
 
 # ───────────── ceilalți pași (venituri, verificări) ─────────────
 
-GENERIC_STEPS = ("special_purpose_income", "checks")
+GENERIC_STEPS = ("fx_difference", "special_purpose_income", "checks")
 
 
 class StepRowOut(BaseModel):
