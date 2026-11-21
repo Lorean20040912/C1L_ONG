@@ -96,7 +96,7 @@ def test_mf_din_factura_se_amortizeaza_pe_fond(db, ong):
     line = db.scalar(select(EntryLine).where(EntryLine.document_id == run.document_id))
     assert line.grant_id == grant.id and line.entry_date == date(2026, 4, 30)
     assert accumulated(db, org.id, [asset.id]) == {asset.id: Decimal(1000)}
-    assert run.status == "done" and run.steps[0]["entries"] == 1
+    assert run.steps[0]["status"] == "done" and run.steps[0]["entries"] == 1
     assert turnover_differences(db, org.id) == []
 
 
@@ -186,7 +186,7 @@ def test_api_inchiderea_lunii_si_fisele(client, db, ong):
 
     state = client.get(f"{base}/month-close/2026/4", headers=h).json()
     assert state["status"] == "draft" and state["steps"][0]["step"] == "depreciation"
-    assert [s["implemented"] for s in state["steps"]].count(True) == 1
+    assert [s["implemented"] for s in state["steps"]].count(True) == 3
 
     preview = client.post(f"{base}/month-close/2026/4/depreciation/preview", headers=h).json()
     assert preview["errors"] and preview["rows"][0]["error"]
@@ -200,7 +200,7 @@ def test_api_inchiderea_lunii_si_fisele(client, db, ong):
     assert Decimal(preview["total"]) == 1000
 
     state = client.post(f"{base}/month-close/2026/4/depreciation/run", headers=h).json()
-    assert state["status"] == "done" and state["steps"][0]["status"] == "done"
+    assert state["steps"][0]["status"] == "done"
     assets = client.get(f"{base}/fixed-assets", headers=h).json()
     assert Decimal(assets[0]["accumulated"]) == 1000 and Decimal(assets[0]["book_value"]) == 35000
 
@@ -219,3 +219,84 @@ def test_api_inchiderea_lunii_si_fisele(client, db, ong):
     intrus = make_user(db, "intrus@exemplu.md")
     make_org(db, intrus, "AO Beta")
     assert client.get(f"{base}/fixed-assets", headers=auth_headers(intrus)).status_code == 404
+
+
+# ───────────── venituri din mijloace cu destinație specială, verificări ─────────────
+
+
+def _manual_expense(db, org, acc, grant, user, amount="500", doc_date=date(2026, 4, 15)):
+    from app.core.enums import DocumentType
+    from app.documents.models import Document
+    from app.posting.engine import LineInput, post_document
+
+    doc = Document(organization_id=org.id, type=DocumentType.other, doc_number="OM-1", doc_date=doc_date)
+    db.add(doc)
+    db.flush()
+    line = LineInput(
+        debit_account_id=acc["716"].id, credit_account_id=acc["521"].id, amount=Decimal(amount), grant_id=grant.id
+    )
+    post_document(db, organization_id=org.id, document_id=doc.id, lines=[line], user_id=user.id)
+    return doc
+
+
+def test_veniturile_acopera_cheltuielile_lunii(db, ong):
+    from app.month_close.service import preview_step, revert_step, run_step
+
+    user, org, acc, grant, bl, supplier = ong
+    _manual_expense(db, org, acc, grant, user)  # operațiune manuală: 716 fără 537/616
+    result = run_step(db, org.id, 2026, 4, "special_purpose_income", user.id)
+    assert result.total == Decimal(500)
+    step = next(s for s in get_run(db, org.id, 2026, 4).steps if s["step"] == "special_purpose_income")
+    assert codes(db, step["document_id"]) == [("537", "616", Decimal(500))]
+    # repetarea nu dublează, iar previzualizarea ulterioară nu mai găsește diferențe
+    run_step(db, org.id, 2026, 4, "special_purpose_income", user.id)
+    assert codes(db, step["document_id"]) == [("537", "616", Decimal(500))]
+    assert preview_step(db, org.id, 2026, 5, "special_purpose_income").rows == []
+    revert_step(db, org.id, 2026, 4, "special_purpose_income", user.id)
+    assert codes(db, step["document_id"]) == []
+    assert turnover_differences(db, org.id) == []
+
+
+def test_factura_din_grant_nu_cere_venit_suplimentar(db, ong):
+    from app.month_close.service import preview_step
+
+    user, org, _, _, bl, supplier = ong
+    doc = make_invoice(
+        db,
+        org,
+        supplier,
+        [dict(description="Internet", amount=Decimal(300), line_kind=LineKind.service, budget_line_id=bl["2.1"].id)],
+        doc_date=date(2026, 4, 2),
+    )
+    post_invoice(db, org.id, doc.id, user.id)
+    assert preview_step(db, org.id, 2026, 4, "special_purpose_income").total == 0
+
+
+def test_verificarile_lunii(client, db, ong):
+    from app.core.enums import DocumentType
+    from app.documents.models import Document
+
+    user, org, acc, grant, bl, supplier = ong
+    h = auth_headers(user)
+    base = f"/organizations/{org.id}/month-close/2026/4/steps/checks"
+    db.add(Document(organization_id=org.id, type=DocumentType.other, doc_number="NEINREG", doc_date=date(2026, 4, 20)))
+    db.flush()
+    preview = client.post(f"{base}/preview", headers=h).json()
+    assert any("NEINREG" in e for e in preview["errors"])
+    state = client.post(f"{base}/run", headers=h).json()
+    step = next(s for s in state["steps"] if s["step"] == "checks")
+    assert step["status"] == "error" and step["issues"]
+    # 716/521: 521 (pasiv) are sold creditor — corect, deci nu e semnalat
+    _manual_expense(db, org, acc, grant, user)
+    assert not any("Contul 521" in e for e in client.post(f"{base}/preview", headers=h).json()["errors"])
+    assert (
+        client.post(f"/organizations/{org.id}/month-close/2026/4/steps/payroll/preview", headers=h).status_code == 404
+    )
+
+
+def test_verificarile_trec_pe_o_luna_curata(db, ong):
+    from app.month_close.service import run_step
+
+    user, org, _, _, bl, supplier = ong
+    result = run_step(db, org.id, 2026, 6, "checks", user.id)
+    assert result.errors == [] and result.rows[0].label == "Toate verificările au trecut"
