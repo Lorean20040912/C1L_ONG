@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.members_router import router as members_router
 from app.auth.router import router as auth_router
+from app.auth.security_router import router as security_router
 from app.bank.router import router as bank_router
 from app.catalogs.router import router as catalogs_router
 from app.core.config import get_settings
@@ -41,6 +42,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(security_router)
 app.include_router(catalogs_router)
 app.include_router(workspaces_router)
 app.include_router(features_router)
