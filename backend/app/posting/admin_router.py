@@ -6,6 +6,7 @@
   administratorul sau contabilul-șef, cu motiv, și rămâne în audit.
 """
 
+import re
 import uuid
 from datetime import date, datetime
 
@@ -41,6 +42,9 @@ class PolicyIn(BaseModel):
         age = value.get("max_rate_age_days")
         if age is not None and (isinstance(age, bool) or not isinstance(age, int) or not 0 <= age <= 60):
             raise ValueError("max_rate_age_days: număr întreg de zile între 0 și 60")
+        account = value.get("closing_account")
+        if account is not None and not (isinstance(account, str) and re.fullmatch(r"33\d*(\.\d+)?", account)):
+            raise ValueError("closing_account: cod de cont 33x")
         return value
 
 

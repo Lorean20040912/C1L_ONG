@@ -153,11 +153,12 @@ def calculate_contract(db: Session, contract: Contract, year: int, month: int) -
         month_days = working_days(start, end)
         worked = working_days(period_start, period_end)
         if entry_input is not None and entry_input.worked_days is not None:
-            if entry_input.worked_days > worked:
-                raise PostingError(
-                    f"pontaj: {entry_input.worked_days} zile lucrate, dar perioada contractului în lună are {worked} zile lucrătoare"
+            if entry_input.worked_days > worked:  # contractul s-a scurtat după pontaj: se limitează, cu avertisment
+                details["timesheet_warning"] = (
+                    f"pontaj de {entry_input.worked_days} zile, perioada contractului are {worked}; s-au luat {worked}"
                 )
-            worked = entry_input.worked_days
+            else:
+                worked = entry_input.worked_days
             details["timesheet"] = True
         details["working_days"] = {"month": month_days, "worked": worked}
         gross = money(contract.gross_amount * worked / month_days) if month_days else Decimal(0)

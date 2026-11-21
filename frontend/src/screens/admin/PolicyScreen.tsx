@@ -66,7 +66,7 @@ export function PolicyScreen() {
           grant_recognition: recognition,
           stock_to_deferred_income: stocks,
           fa_valuation_method: faMethod.trim() || null,
-          settings: { ...settings, max_rate_age_days: Number(rateAge) },
+          settings: { ...settings, max_rate_age_days: Number.isInteger(Number(rateAge)) && rateAge.trim() !== "" ? Number(rateAge) : 5 },
         },
       });
       await load();

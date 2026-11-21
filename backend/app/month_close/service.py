@@ -230,6 +230,16 @@ def run_step(
         result, payroll_plan = _payroll(db, organization_id, year, month)
     else:
         result = preview_step(db, organization_id, year, month, step)
+    if step == "account_closing":
+        # conturile 6/7 se închid ultimele: pașii care înregistrează în ele trebuie să fie executați
+        pending = [
+            title
+            for code, title, ok in STEPS
+            if ok and code not in OPTIONAL_STEPS and code not in ("account_closing", "checks")
+            and _step(run, code).get("status") != "done"
+        ]
+        if pending:
+            raise PostingError("Închideți conturile după ceilalți pași; neexecutați: " + ", ".join(pending))
     values: dict = {"status": "done", "entries": len(result.lines), "total": str(result.total)}
     if step == "grant_allocation":
         values["params"] = params

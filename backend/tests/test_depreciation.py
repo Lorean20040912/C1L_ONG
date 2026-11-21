@@ -312,6 +312,11 @@ def test_inchiderea_conturilor_6_7_la_331(db, ong):
     make_accounts(db, org, "331")
     _manual_expense(db, org, acc, grant, user, amount="500")  # Dt 716 / Kt 521, fără venit
     run_step(db, org.id, 2026, 4, "special_purpose_income", user.id)  # Dt 537 / Kt 616 = 500
+    with pytest.raises(PostingError, match="neexecutați"):
+        run_step(db, org.id, 2026, 4, "account_closing", user.id)
+    run_depreciation(db, org.id, 2026, 4, user.id)
+    for earlier in ("payroll", "fx_difference"):
+        run_step(db, org.id, 2026, 4, earlier, user.id)
     result = preview_step(db, org.id, 2026, 4, "account_closing")
     pairs = {(r.debit_account, r.credit_account, r.amount) for r in result.rows}
     assert pairs == {("616", "331", Decimal(500)), ("331", "716", Decimal(500))}

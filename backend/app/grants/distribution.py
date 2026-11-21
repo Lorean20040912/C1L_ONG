@@ -305,6 +305,8 @@ def create_transfer(
     body: TransferIn, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
 ) -> DistributionOut:
     ctx.require(POSTING_ROLES)
+    # o singură închidere o dată pe organizație (altfel două cereri ar transfera aceeași sumă de două ori)
+    db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(f"stock-transfer:{ctx.organization_id}", 0))))
     if body.grant_id:
         _grant(db, ctx, body.grant_id, lock=True)
     try:

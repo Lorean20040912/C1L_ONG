@@ -307,7 +307,7 @@ def post_transactions(
                     if item.exchange_rate <= 0:
                         raise BankError("Cursul trebuie să fie pozitiv")
                     order.exchange_rate = item.exchange_rate
-                elif not order.exchange_rate:
+                else:  # cursul curent din tabel, verificat pe limita de vechime
                     try:
                         order.exchange_rate = fresh_rate(db, organization_id, doc.currency, doc.doc_date).rate
                     except RateError as exc:
@@ -336,19 +336,25 @@ def unpost_transactions(
     results: dict[uuid.UUID, str | None] = {}
     for tid in transaction_ids:
         tx = by_id.get(tid)
-        if tx is None or tx.document_id is None:
+        if tx is None:
             results[tid] = "Rândul nu aparține importului"
+            continue
+        if tx.document_id is None:
+            results[tid] = "Rândul nu are document"
             continue
         savepoint = db.begin_nested()
         try:
             doc = db.get(Document, tx.document_id)
-            if doc.is_posted:
+            if doc is not None and doc.is_posted:
                 unpost_document(db, organization_id=organization_id, document_id=doc.id, user_id=user_id)
             savepoint.commit()
             results[tid] = None
         except PostingError as exc:
             savepoint.rollback()
             results[tid] = str(exc)
+        except Exception:  # noqa: BLE001 - o eroare neprevăzută nu strică celelalte rânduri
+            savepoint.rollback()
+            results[tid] = "Anularea rândului nu a reușit"
     return results
 
 
