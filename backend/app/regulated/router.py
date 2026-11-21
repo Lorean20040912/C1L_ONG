@@ -160,7 +160,7 @@ def _report_out(db: Session, report: TaxReport) -> ReportOut:
         unit=form.structure.get("unit", "lei"), period_from=report.period_from, period_to=report.period_to,
         status=report.status or ReportStatus.draft, submitted_at=report.submitted_at,
         generated_at=data.get("generated_at"), header=data.get("header", {}), rows=rows,
-        checks=data.get("checks", []), annex_1d=data.get("annex_1d", []), xml_export="xml" in form.structure,
+        checks=data.get("checks", []), annex_1d=data.get("annex_1d", []), xml_export=export.has_xml(form.code),
     )  # fmt: skip
 
 
@@ -326,10 +326,10 @@ def export_xlsx(report_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context)
 def export_xml(report_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> Response:
     report = _report(db, ctx, report_id)
     form = db.get(ReportForm, report.form_id)
-    if "xml" not in form.structure:
+    if not export.has_xml(form.code):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Formularul {form.code} nu are format XML")
     out = report_out(db, report)
-    content = export.report_xml(out, form.structure["xml"])
+    content = export.report_xml(out)
     _audit_export(db, ctx, out, "xml")
     return Response(
         content,

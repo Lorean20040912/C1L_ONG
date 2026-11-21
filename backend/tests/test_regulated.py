@@ -5,6 +5,8 @@ from decimal import Decimal
 from io import BytesIO
 
 import pytest
+from xml.etree import ElementTree as ET
+
 from openpyxl import load_workbook
 
 from app.auth.models import OrganizationMember
@@ -15,6 +17,7 @@ from app.posting.engine import LineInput, post_document
 from app.regulated.formulas import FormulaError, evaluate
 from app.regulated.models import OrganizationStats
 from tests.conftest import auth_headers, make_accounts, make_org, make_user
+from tests.xml_structure import assert_format, assert_same_structure
 
 CODES = ("124", "234", "242", "331", "3411", "521", "537", "616", "617", "618", "716", "717", "718")
 
@@ -189,10 +192,6 @@ def test_5con_fara_activitate_si_perioada_gresita(client, ong):
     r = client.post(f"/organizations/{org.id}/reports/tax-reports", json={"code": "5-CON", "period_from": "2026-02-01"},
                     headers=auth_headers(user))  # fmt: skip
     assert r.status_code == 422
-    # XML există doar pentru 5-CON
-    ong17 = _generate(client, org, user, "ONG17", "2026-01-01")
-    assert client.get(f"/organizations/{org.id}/reports/tax-reports/{ong17['id']}/export.xml",
-                      headers=auth_headers(user)).status_code == 422  # fmt: skip
 
 
 def test_calendarul_raportarilor(client, ong):
@@ -371,3 +370,34 @@ def test_formula_gresita_in_formular_da_422(client, db, ong):
     db.flush()
     r = client.get(f"/organizations/{org.id}/reports/tax-reports/{report['id']}", headers=auth_headers(user))
     assert r.status_code == 422 and "Formulă greșită" in r.json()["detail"]
+
+
+def _xml(client, org, user, report):
+    r = client.get(f"/organizations/{org.id}/reports/tax-reports/{report['id']}/export.xml", headers=auth_headers(user))
+    assert r.status_code == 200
+    return r.content
+
+
+def test_5con_xml_are_structura_exportului_oficial(client, ong):
+    user, org, _ = ong
+    xml = _xml(client, org, user, _generate(client, org, user, "5-CON", "2026-07-01"))
+    assert_format(xml, "5con_22.xml")
+    assert_same_structure(xml, "5con_22.xml")
+    root = ET.fromstring(xml)
+    assert root.find("DataSet/Header/nalogPeriodType").text == "T/3/2026"
+    assert root.find("DataSet/Header/TRIM").attrib == {"title": "3"}
+    assert root.find("DataSet/Header/CUIIO").text == "40000000"
+    # 111 și 112 nu au celule proprii: intră în rândul 110
+    assert root.find("DataSet/Data/CAP1_R111_C1") is None
+
+
+def test_ong17_xml_are_structura_exportului_oficial(client, ong):
+    user, org, _ = ong
+    report = _generate(client, org, user, "ONG17", "2026-01-01")
+    xml = _xml(client, org, user, report)
+    assert_format(xml, "ong17.xml")
+    assert_same_structure(xml, "ong17.xml")
+    root = ET.fromstring(xml)
+    assert root.find("peroidnalog/datefisc").text == "A/2026"
+    assert root.find("table1/row/r050").text == "12.00"
+    assert sum(int(f.text) for f in root.findall("table/*/*") if f.tag.startswith("flag") and f.tag != "flag21") == 1
