@@ -638,3 +638,25 @@ td .pair input {
     justify-content: flex-start;
   }
 }
+
+/* ───── administrare ───── */
+.master-detail {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 2.2fr;
+  gap: 24px;
+  align-items: start;
+}
+.grid tr.own-row td {
+  background: #fffaf0;
+}
+code {
+  font-size: 12px;
+  background: #f4f4f4;
+  padding: 0 4px;
+  border-radius: 2px;
+}
+@media (max-width: 900px) {
+  .master-detail {
+    grid-template-columns: 1fr;
+  }
+}

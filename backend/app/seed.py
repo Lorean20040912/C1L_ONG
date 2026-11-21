@@ -76,7 +76,7 @@ def run() -> None:
         )
         db.add(org)
         db.flush()
-        db.add(OrganizationMember(organization_id=org.id, user_id=user.id, role=UserRole.chief_accountant))
+        db.add(OrganizationMember(organization_id=org.id, user_id=user.id, role=UserRole.admin))
         accounts = {
             code: Account(organization_id=org.id, code=code, name=name, account_kind=kind)
             for code, name, kind in DEMO_ACCOUNTS

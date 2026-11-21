@@ -92,7 +92,9 @@ export const SECTIONS: Section[] = [
     icon: "⚙",
     title: "Administrare",
     groups: {
-      Setări: ["Surse de documente (Drive / folder)", "Profiluri bănci", "Utilizatori și drepturi", "Funcționalitate"],
+      Contabilitate: ["Politica contabilă", "Reguli de înregistrare", "Perioade închise", "Conturi bancare"],
+      Utilizatori: ["Utilizatori și drepturi"],
+      Setări: ["Surse de documente (Drive / folder)", "Profiluri bănci", "Funcționalitate"],
     },
   },
 ];

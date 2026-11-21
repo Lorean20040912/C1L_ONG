@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { UserRole } from "../api/types";
 
 export type TabKind =
   | "home"
@@ -11,7 +12,14 @@ export type TabKind =
   | "dtkt"
   | "budget"
   | "month-close"
-  | "fixed-assets";
+  | "fixed-assets"
+  | "grants"
+  | "policy"
+  | "rules"
+  | "bank-accounts"
+  | "members"
+  | "periods"
+  | "accounts";
 
 export interface Tab {
   id: string;
@@ -28,6 +36,8 @@ export interface Tab {
 
 export interface ShellApi {
   orgId: string;
+  /** rolul utilizatorului în organizația curentă (pentru a arăta doar acțiunile permise) */
+  role: UserRole | undefined;
   openTab: (tab: Tab) => void;
   closeTab: (id: string, options?: { force?: boolean }) => void;
   updateTab: (id: string, patch: Partial<Tab>) => void;
@@ -48,7 +58,22 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Execuția bugetului": "budget",
   "Închiderea lunii": "month-close",
   "Fișa mijloacelor fixe": "fixed-assets",
+  "Proiecte / granturi": "grants",
+  "Linii de buget": "grants",
+  "Politica contabilă": "policy",
+  "Reguli de înregistrare": "rules",
+  "Conturi bancare": "bank-accounts",
+  "Utilizatori și drepturi": "members",
+  "Perioade închise": "periods",
+  "Planul de conturi": "accounts",
 };
+
+export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];
+export const POSTING_ROLES: UserRole[] = ["admin", "chief_accountant", "accountant"];
+
+export function can(role: UserRole | undefined, roles: UserRole[]): boolean {
+  return role !== undefined && roles.includes(role);
+}
 
 let counter = 0;
 export function newId(prefix: string): string {

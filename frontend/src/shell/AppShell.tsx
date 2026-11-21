@@ -3,6 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { ROLE_LABELS, type OrganizationBrief, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { AccountsScreen } from "../screens/admin/AccountsScreen";
+import { BankAccountsScreen } from "../screens/admin/BankAccountsScreen";
+import { GrantsScreen } from "../screens/admin/GrantsScreen";
+import { MembersScreen } from "../screens/admin/MembersScreen";
+import { PeriodsScreen } from "../screens/admin/PeriodsScreen";
+import { PolicyScreen } from "../screens/admin/PolicyScreen";
+import { RulesScreen } from "../screens/admin/RulesScreen";
 import { BudgetExecution } from "../screens/BudgetExecution";
 import { FixedAssets } from "../screens/FixedAssets";
 import { InvoiceForm } from "../screens/InvoiceForm";
@@ -89,7 +96,10 @@ export function AppShell() {
     return () => document.removeEventListener("keydown", onKey);
   }, [active, tabs, closeTab]);
 
-  const shell: ShellApi = useMemo(() => ({ orgId, openTab, closeTab, updateTab }), [orgId, openTab, closeTab, updateTab]);
+  const shell: ShellApi = useMemo(
+    () => ({ orgId, role: org?.role, openTab, closeTab, updateTab }),
+    [orgId, org?.role, openTab, closeTab, updateTab],
+  );
 
   return (
     <ShellContext.Provider value={shell}>
@@ -203,6 +213,20 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <MonthCloseScreen />;
     case "fixed-assets":
       return <FixedAssets />;
+    case "grants":
+      return <GrantsScreen />;
+    case "policy":
+      return <PolicyScreen />;
+    case "rules":
+      return <RulesScreen />;
+    case "bank-accounts":
+      return <BankAccountsScreen />;
+    case "members":
+      return <MembersScreen />;
+    case "periods":
+      return <PeriodsScreen />;
+    case "accounts":
+      return <AccountsScreen />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:
