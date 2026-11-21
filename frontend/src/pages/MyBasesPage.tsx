@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ENTITY_LABELS, ROLE_LABELS, type EntityType, type Workspace } from "../api/types";
+import { ENTITY_LABELS, ROLE_LABELS, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { NewBaseWizard } from "./NewBaseWizard";
 
 // „Bazele mele” (ToR F00.1): ca lista de baze de la pornirea 1C.
 export function MyBasesPage() {
@@ -55,7 +56,7 @@ export function MyBasesPage() {
         </div>
 
         {creating && (
-          <NewBaseForm
+          <NewBaseWizard
             onCreated={(ws) => {
               setCreating(false);
               setSelected(ws.organizations[0].id);
@@ -104,61 +105,5 @@ export function MyBasesPage() {
         <p className="muted">Dublu clic sau Enter pe rând deschide baza.</p>
       </div>
     </div>
-  );
-}
-
-function NewBaseForm({ onCreated }: { onCreated: (ws: Workspace) => void }) {
-  const [name, setName] = useState("");
-  const [idno, setIdno] = useState("");
-  const [entityType, setEntityType] = useState<EntityType>("ngo_association");
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    try {
-      const ws = await api<Workspace>("/workspaces", {
-        method: "POST",
-        body: { name, organization_name: name, idno, entity_type: entityType },
-      });
-      onCreated(ws);
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  return (
-    <form className="card" onSubmit={submit}>
-      <h3>Bază nouă</h3>
-      {error && <div className="error">{error}</div>}
-      <div className="field">
-        <label htmlFor="nb-name">Denumirea organizației</label>
-        <input id="nb-name" value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-      <div className="field">
-        <label htmlFor="nb-idno">IDNO (13 cifre)</label>
-        <input
-          id="nb-idno"
-          value={idno}
-          onChange={(e) => setIdno(e.target.value)}
-          pattern="\d{13}"
-          inputMode="numeric"
-          required
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="nb-type">Forma juridică</label>
-        <select id="nb-type" value={entityType} onChange={(e) => setEntityType(e.target.value as EntityType)}>
-          {Object.entries(ENTITY_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <button className="b primary" type="submit">
-        Creează
-      </button>
-    </form>
   );
 }

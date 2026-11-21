@@ -1,8 +1,10 @@
 import type { Section } from "./sections";
+import { useProfile } from "./profile";
 import { SCREEN_LINKS, newId, useShell } from "./tabs";
 
 export function SectionPanel({ section }: { section: Section }) {
   const { openTab } = useShell();
+  const profile = useProfile();
   const groups = Object.entries(section.groups ?? {});
   return (
     <>
@@ -13,7 +15,7 @@ export function SectionPanel({ section }: { section: Section }) {
           <div key={group}>
             <h3>{group}</h3>
             <ul>
-              {links.map((title) => {
+              {links.filter((title) => profile.screenVisible(title)).map((title) => {
                 const kind = SCREEN_LINKS[title];
                 return (
                   <li key={title}>
