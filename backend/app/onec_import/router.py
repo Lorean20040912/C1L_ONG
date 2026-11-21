@@ -79,7 +79,7 @@ def start_import(body: ImportIn, ctx: OrgContext = Depends(get_org_context), db:
                          period_from=body.period_from, period_to=body.period_to)  # fmt: skip
     except (ImportFormatError, PostingError) as exc:
         db.rollback()
-        now = datetime.utcnow()
+        now = datetime.now()
         db.add(OnecImportRun(organization_id=ctx.organization_id, source="xml", status=ImportStatus.failed,
                              stats={"error": str(exc)}, started_by=ctx.user.id, started_at=now, finished_at=now))  # fmt: skip
         db.commit()

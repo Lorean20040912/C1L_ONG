@@ -334,7 +334,7 @@ def run_import(
     """O rulare de import: totul sau nimic (la eroare ruta face rollback și notează rularea eșuată)."""
     parsed = parse_export(text)
     run = OnecImportRun(organization_id=organization_id, source="xml", period_from=period_from, period_to=period_to,
-                        status=ImportStatus.running, started_by=user_id, started_at=datetime.utcnow())  # fmt: skip
+                        status=ImportStatus.running, started_by=user_id, started_at=datetime.now())  # fmt: skip
     db.add(run)
     db.flush()
     stats: dict = {"accounts": _import_accounts(db, organization_id, parsed.accounts)}
@@ -345,7 +345,7 @@ def run_import(
     if parsed.control_date is not None:
         run.reconciliation = reconcile(db, organization_id, parsed.control_date, parsed.control)
     run.status = ImportStatus.done
-    run.finished_at = datetime.utcnow()
+    run.finished_at = datetime.now()
     write_audit(db, action="import_1c", entity="onec_import_runs", entity_id=run.id, organization_id=organization_id,
                 user_id=user_id, new_values=stats)  # fmt: skip
     db.flush()

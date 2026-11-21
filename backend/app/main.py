@@ -14,6 +14,7 @@ from app.core.db import get_db
 from app.documents.invoices_router import router as invoices_router
 from app.documents.payments_router import router as payments_router
 from app.documents.router import router as documents_router
+from app.efactura.router import router as efactura_router
 from app.features.router import router as features_router
 from app.grants.admin_router import router as grants_admin_router
 from app.grants.router import router as grants_router
@@ -64,6 +65,7 @@ app.include_router(regulated_router)
 app.include_router(regulated_settings_router)
 app.include_router(bank_router)
 app.include_router(onec_import_router)
+app.include_router(efactura_router)
 
 
 @app.get("/health", tags=["sistem"])
