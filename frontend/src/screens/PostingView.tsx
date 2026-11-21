@@ -41,6 +41,11 @@ export function PostingView({ route, documentId, title }: { route: string; docum
           })),
         );
         setIsPreview(false);
+      } else if (route === "documents") {
+        // documentele fără reguli proprii (ex. închiderea lunii) nu au previzualizare
+        setRows([]);
+        setIsPreview(false);
+        setError("Documentul nu are înregistrări.");
       } else {
         const preview = await api<PreviewLine[]>(`${base}/${route}/${documentId}/preview`, { method: "POST" });
         setRows(
