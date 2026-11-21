@@ -25,6 +25,7 @@ from app.posting.models import (
     EntryLineAnalytics,
     PostingRule,
 )
+from app.regulated.models import OrganizationStats, ReportForm, ReportingCalendar, TaxReport
 from app.taxes.models import TaxRate
 from app.workspaces.models import Organization, Workspace
 
@@ -59,7 +60,11 @@ __all__ = [
     "PayrollEntry",
     "PayrollPeriod",
     "Person",
+    "OrganizationStats",
     "PostingRule",
+    "ReportForm",
+    "ReportingCalendar",
+    "TaxReport",
     "TaxRate",
     "User",
     "Workspace",

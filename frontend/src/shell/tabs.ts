@@ -26,7 +26,13 @@ export type TabKind =
   | "contracts"
   | "payroll"
   | "individual-payments"
-  | "ipc21";
+  | "ipc21"
+  | "ong17"
+  | "con5"
+  | "account-card"
+  | "account-analysis"
+  | "cost-items"
+  | "reporting-data";
 
 export interface Tab {
   id: string;
@@ -85,6 +91,12 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Plată către persoană fizică": "individual-payments",
   "Plăți către persoane fizice": "individual-payments",
   IPC21: "ipc21",
+  ONG17: "ong17",
+  "5-CON": "con5",
+  "Fișa contului": "account-card",
+  "Analiza contului": "account-analysis",
+  "Articole de cheltuieli": "cost-items",
+  "Date pentru rapoarte": "reporting-data",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];

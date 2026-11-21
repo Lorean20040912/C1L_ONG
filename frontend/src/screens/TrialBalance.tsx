@@ -21,7 +21,7 @@ const COLS: Key[] = ["opening_debit", "opening_credit", "turnover_debit", "turno
 
 /** Balanța de verificare (OSV): sold inițial, rulaje, sold final pe conturi. */
 export function TrialBalance() {
-  const { orgId } = useShell();
+  const { orgId, openTab } = useShell();
   const { catalogs } = useCatalogs(orgId);
   const year = new Date().getFullYear();
   const [from, setFrom] = useState(`${year}-01`);
@@ -81,7 +81,15 @@ export function TrialBalance() {
           <tbody>
             {data.rows.map((r) => (
               <tr key={r.account_id}>
-                <td>{r.code}</td>
+                <td>
+                  <button
+                    className="link"
+                    title="Fișa contului"
+                    onClick={() => openTab({ id: `account-card:${r.account_id}`, title: `Fișa contului ${r.code}`, kind: "account-card", params: { accountId: r.account_id } })}
+                  >
+                    {r.code}
+                  </button>
+                </td>
                 <td>{r.name}</td>
                 {COLS.map((c) => (
                   <td key={c} className="num">{Number(r[c]) ? money(r[c]) : ""}</td>

@@ -117,3 +117,5 @@ export async function apiDownload(path: string, fileName: string): Promise<void>
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export const download = apiDownload;

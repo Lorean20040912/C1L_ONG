@@ -354,3 +354,132 @@ export interface Period {
   closed_at: string | null;
   closed_by_name: string | null;
 }
+
+// ───────────── rapoarte reglementate ─────────────
+
+export interface CostItem {
+  id: string;
+  name: string;
+  con5_article: string | null;
+  designation_category: string | null;
+}
+
+export const DESIGNATION_LABELS: Record<string, string> = {
+  public_utility: "Utilitate publică",
+  social_charity: "Social, moral, cultural, caritate",
+  administrative: "Cheltuieli administrative",
+};
+
+export type ReportStatus = "draft" | "checked" | "submitted";
+
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  draft: "Ciornă",
+  checked: "Verificat",
+  submitted: "Depus",
+};
+
+export interface ReportRow {
+  code: string;
+  label: string;
+  indent: number;
+  informative: boolean;
+  unit: string | null;
+  has_formula: boolean;
+  calculated: string;
+  value: string;
+  overridden: boolean;
+}
+
+export interface ReportCheck {
+  severity: "error" | "warning";
+  message: string;
+  cell?: string;
+}
+
+export interface AnnexColumn {
+  year: number;
+  total: string;
+  public_utility: string;
+  social_charity: string;
+  administrative: string;
+  unclassified: string;
+}
+
+export interface Annex1D {
+  grant_id: string;
+  grant_code: string;
+  designation_year: number;
+  received: string;
+  columns: (AnnexColumn | null)[];
+  remaining: string;
+  to_refund: boolean;
+}
+
+export interface TaxReport {
+  id: string;
+  code: string;
+  title: string;
+  form_version: string;
+  unit: string;
+  period_from: string;
+  period_to: string;
+  status: ReportStatus;
+  submitted_at: string | null;
+  generated_at: string | null;
+  header: Record<string, string | null>;
+  rows: ReportRow[];
+  checks: ReportCheck[];
+  annex_1d: Annex1D[];
+  xml_export: boolean;
+}
+
+export interface TaxReportListItem {
+  id: string;
+  code: string;
+  period_from: string;
+  period_to: string;
+  status: ReportStatus;
+  submitted_at: string | null;
+}
+
+export interface DrilldownItem {
+  source: string;
+  kind: "entry" | "budget_excess" | "stats" | "rate";
+  amount: string;
+  entry_line_id: number | null;
+  entry_date: string | null;
+  document_id: string | null;
+  doc_number: string | null;
+  debit_account: string | null;
+  credit_account: string | null;
+  grant_code: string | null;
+  cost_item: string | null;
+  description: string | null;
+  label: string | null;
+  planned: string | null;
+  spent: string | null;
+}
+
+export interface CellDrilldown {
+  code: string;
+  label: string;
+  value: string;
+  overridden: boolean;
+  sources: { source: string; value: string; lei: string; reported_lei: string }[];
+  items: DrilldownItem[];
+  changed_since_report: boolean;
+}
+
+export interface CalendarItem {
+  id: string;
+  code: string;
+  title: string | null;
+  period_from: string;
+  period_to: string;
+  due_date: string;
+  status: "submitted" | "overdue" | "due_soon" | "upcoming";
+  status_label: string;
+  days_left: number;
+  tax_report_id: string | null;
+  supported: boolean;
+}

@@ -25,6 +25,10 @@ import { IndividualPayments } from "../screens/payroll/IndividualPayments";
 import { Ipc21Screen } from "../screens/payroll/Ipc21Screen";
 import { PayrollScreen } from "../screens/payroll/PayrollScreen";
 import { PersonsScreen } from "../screens/payroll/PersonsScreen";
+import { AccountReports } from "../screens/reports/AccountReports";
+import { CostItemsScreen } from "../screens/reports/CostItemsScreen";
+import { RegulatedReport } from "../screens/reports/RegulatedReport";
+import { ReportingDataScreen } from "../screens/reports/ReportingDataScreen";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { SECTIONS } from "./sections";
@@ -248,6 +252,18 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <IndividualPayments />;
     case "ipc21":
       return <Ipc21Screen />;
+    case "ong17":
+      return <RegulatedReport code="ONG17" periodFrom={p.periodFrom} />;
+    case "con5":
+      return <RegulatedReport code="5-CON" periodFrom={p.periodFrom} />;
+    case "account-card":
+      return <AccountReports mode="card" accountId={p.accountId} />;
+    case "account-analysis":
+      return <AccountReports mode="analysis" accountId={p.accountId} />;
+    case "cost-items":
+      return <CostItemsScreen />;
+    case "reporting-data":
+      return <ReportingDataScreen />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:
