@@ -218,7 +218,8 @@ def build_lines(
                     quantity=op.quantity,
                     department_id=op.department_id,
                     grant_id=op.grant_id,
-                    budget_line_id=op.budget_line_id,
+                    # regulile „oglindă” (ex. 537/616) nu repetă linia de buget a cheltuielii
+                    budget_line_id=None if (rule.analytics or {}).get("budget_line") == "drop" else op.budget_line_id,
                     cost_item_id=op.cost_item_id,
                     activity_type=op.activity_type or (rule.analytics or {}).get("activity_type"),
                     description=op.description,

@@ -7,6 +7,7 @@ from app.catalogs.models import Account, AccountAnalytics, Counterparty, Departm
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
 from app.fixed_assets.models import FixedAsset
 from app.grants.models import BudgetLine, CostItem, Grant
+from app.month_close.models import MonthCloseRun
 from app.posting.models import (
     AccountingPeriod,
     AccountingPolicy,
@@ -37,6 +38,7 @@ __all__ = [
     "Grant",
     "Invoice",
     "InvoiceLine",
+    "MonthCloseRun",
     "Organization",
     "OrganizationMember",
     "PaymentOrder",
