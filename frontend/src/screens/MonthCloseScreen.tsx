@@ -138,6 +138,11 @@ export function MonthCloseScreen() {
                           Anulează
                         </button>
                       )}
+                      {s.step === "payroll" && (
+                        <button className="b" onClick={() => openTab({ id: "payroll", title: "Calcul salariu", kind: "payroll" })}>
+                          Statul de plată
+                        </button>
+                      )}
                     </>
                   )}
                   {s.step === "depreciation" && (
