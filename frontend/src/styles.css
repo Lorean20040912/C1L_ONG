@@ -360,3 +360,190 @@ table.grid {
     grid-template-columns: 1fr;
   }
 }
+
+/* ───── formulare de document (după prototip) ───── */
+.form {
+  display: grid;
+  grid-template-columns: 150px 1fr 150px 1fr;
+  gap: 8px 12px;
+  align-items: center;
+  max-width: 980px;
+  margin-bottom: 12px;
+}
+.form label {
+  color: #555;
+  text-align: right;
+}
+.form input,
+.form select {
+  font: inherit;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  width: 100%;
+  background: #fff;
+}
+.form input:disabled,
+.form select:disabled,
+.grid.edit input:disabled,
+.grid.edit select:disabled {
+  background: #f7f7f7;
+  color: #444;
+}
+.form .wide {
+  grid-column: span 3;
+}
+.form .pair {
+  display: flex;
+  gap: 6px;
+}
+.ref {
+  display: flex;
+  gap: 4px;
+}
+.ref select {
+  flex: 1;
+  min-width: 0;
+}
+.inline-form {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 6px 0 0;
+}
+.inline-form input {
+  flex: 1;
+  min-width: 140px;
+}
+.inline-form .error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.inner-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin: 8px 0;
+}
+.inner-tabs span {
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+}
+.inner-tabs span.on {
+  border-color: var(--border);
+  background: #fff;
+  border-radius: 3px 3px 0 0;
+  margin-bottom: -1px;
+  font-weight: 600;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.grid.edit td {
+  padding: 2px 4px;
+}
+.grid.edit input,
+.grid.edit select {
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  width: 100%;
+  min-width: 0;
+  background: #fff;
+}
+.grid.edit tbody tr {
+  cursor: default;
+}
+.grid td.num,
+.grid th.num,
+input.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.x-btn {
+  border: none;
+  background: none;
+  color: #888;
+  font-size: 16px;
+}
+.x-btn:hover {
+  color: var(--red);
+}
+.totals {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+.totals b {
+  font-variant-numeric: tabular-nums;
+}
+.footer-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 18px;
+}
+.kbd {
+  font: 11px monospace;
+  border: 1px solid #ccc;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 4px;
+  background: #fafafa;
+}
+.st {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+}
+.st.ok,
+.ok {
+  color: var(--green);
+}
+.st.no {
+  color: #aaa;
+}
+.st.del {
+  color: var(--red);
+}
+.badge {
+  font-size: 12px;
+  border-radius: 3px;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+}
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #eee;
+}
+.tag.fa {
+  background: #e3eefb;
+}
+.tag.omv {
+  background: #fcebd7;
+}
+.tag.mat {
+  background: #e9f5e5;
+}
+.tag.srv {
+  background: #f0e8f7;
+}
+.bar input.b {
+  font: inherit;
+}
+
+@media (max-width: 900px) {
+  .form {
+    grid-template-columns: 110px 1fr;
+  }
+  .form .wide {
+    grid-column: auto;
+  }
+}
