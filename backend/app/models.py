@@ -2,7 +2,7 @@
 
 from app.audit.models import AuditLog
 from app.bank.models import BankAccount, BankFormat, BankImport, BankTransaction, ExchangeRate, PaymentBatch
-from app.auth.models import OrganizationMember, User
+from app.auth.models import OrganizationMember, User, UserBackupCode
 from app.catalogs.models import Account, AccountAnalytics, Counterparty, Department
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
 from app.features.models import CoaTemplate, Feature, OrganizationFeature, OrganizationTaxRegime
@@ -28,6 +28,7 @@ from app.posting.models import (
 )
 from app.regulated.models import OrganizationStats, ReportForm, ReportingCalendar, TaxReport
 from app.simple_ledger.models import SimpleLedgerEntry
+from app.tasks.models import Task, TaskTemplate
 from app.taxes.models import TaxRate
 from app.workspaces.models import Organization, Workspace
 
@@ -78,6 +79,9 @@ __all__ = [
     "SimpleLedgerEntry",
     "TaxReport",
     "TaxRate",
+    "Task",
+    "TaskTemplate",
     "User",
+    "UserBackupCode",
     "Workspace",
 ]
