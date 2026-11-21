@@ -211,9 +211,17 @@ export interface MonthCloseStep {
   step: string;
   title: string;
   implemented: boolean;
-  status: "pending" | "done" | "reverted";
+  status: "pending" | "done" | "reverted" | "error";
   entries: number | null;
   total: string | null;
+  issues: string[];
+}
+
+export interface StepPreview {
+  step: string;
+  total: string;
+  rows: { label: string; amount: string; debit_account: string | null; credit_account: string | null; note: string | null }[];
+  errors: string[];
 }
 
 export interface MonthClose {

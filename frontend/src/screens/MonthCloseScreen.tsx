@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { DepreciationPreview, MonthClose } from "../api/types";
+import type { DepreciationPreview, MonthClose, StepPreview } from "../api/types";
 import { grantLabel, useCatalogs } from "../catalog/useCatalogs";
 import { day, money } from "../lib/format";
 import { useShell } from "../shell/tabs";
@@ -9,6 +9,7 @@ const STATUS: Record<string, [string, string]> = {
   done: ["✓", "ok"],
   pending: ["○", "muted"],
   reverted: ["↺", "muted"],
+  error: ["!", "late"],
 };
 
 function previousMonth(): string {
@@ -25,6 +26,7 @@ export function MonthCloseScreen() {
   const [period, setPeriod] = useState(previousMonth());
   const [state, setState] = useState<MonthClose | null>(null);
   const [preview, setPreview] = useState<DepreciationPreview | null>(null);
+  const [stepPreview, setStepPreview] = useState<StepPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +36,7 @@ export function MonthCloseScreen() {
   const load = useCallback(() => {
     setError(null);
     setPreview(null);
+    setStepPreview(null);
     api<MonthClose>(base)
       .then(setState)
       .catch((e: Error) => setError(e.message));
@@ -63,6 +66,14 @@ export function MonthCloseScreen() {
     run(async () => {
       setState(await api<MonthClose>(`${base}/depreciation/revert`, { method: "POST" }));
       setPreview(null);
+    });
+
+  // ceilalți pași implementați (venituri, verificări) au rute comune
+  const stepAction = (step: string, action: "preview" | "run" | "revert") =>
+    run(async () => {
+      setPreview(null);
+      if (action !== "preview") setState(await api<MonthClose>(`${base}/steps/${step}/${action}`, { method: "POST" }));
+      setStepPreview(action === "revert" ? null : await api<StepPreview>(`${base}/steps/${step}/preview`, { method: "POST" }));
     });
 
   const openDtKt = () =>
@@ -105,13 +116,30 @@ export function MonthCloseScreen() {
                 <span className="muted">
                   {!s.implemented
                     ? "în lucru"
-                    : s.status === "done"
+                    : s.status === "error"
+                      ? `${s.issues.length} probleme de corectat`
+                      : s.status === "done"
                       ? `${s.entries ?? 0} înregistrări · ${money(s.total)}`
                       : s.status === "reverted"
                         ? "anulat"
                         : "de făcut"}
                 </span>
                 <span className="acts">
+                  {s.implemented && s.step !== "depreciation" && (
+                    <>
+                      <button className="b" onClick={() => stepAction(s.step, "preview")} disabled={busy}>
+                        {s.step === "checks" ? "Verifică" : "Previzualizare"}
+                      </button>
+                      <button className="b primary" onClick={() => stepAction(s.step, "run")} disabled={busy}>
+                        {s.status === "done" || s.status === "error" ? "Repetă" : "Execută"}
+                      </button>
+                      {(s.status === "done" || s.status === "error") && (
+                        <button className="b" onClick={() => stepAction(s.step, "revert")} disabled={busy}>
+                          Anulează
+                        </button>
+                      )}
+                    </>
+                  )}
                   {s.step === "depreciation" && (
                     <>
                       <button className="b" onClick={showPreview} disabled={busy}>
@@ -132,6 +160,44 @@ export function MonthCloseScreen() {
             );
           })}
         </ul>
+      )}
+
+      {stepPreview && (
+        <section>
+          <h2>{state?.steps.find((x) => x.step === stepPreview.step)?.title}</h2>
+          {stepPreview.errors.length > 0 && (
+            <div className="hint warn">
+              {stepPreview.errors.map((e) => (
+                <div key={e}>• {e}</div>
+              ))}
+            </div>
+          )}
+          {stepPreview.rows.length === 0 && stepPreview.errors.length === 0 && <p className="muted">Nimic de înregistrat în această lună.</p>}
+          {stepPreview.rows.length > 0 && (
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Ce s-a găsit</th>
+                  <th className="num">Suma</th>
+                  <th>Dt</th>
+                  <th>Kt</th>
+                  <th>Notă</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stepPreview.rows.map((r) => (
+                  <tr key={r.label}>
+                    <td>{r.label}</td>
+                    <td className="num">{Number(r.amount) ? money(r.amount) : ""}</td>
+                    <td>{r.debit_account}</td>
+                    <td>{r.credit_account}</td>
+                    <td className="muted">{r.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       )}
 
       {preview && (
