@@ -5,12 +5,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.audit.service import write_audit
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user_pending
+from app.auth.lockout import PasswordLocked, check_password
 from app.auth.models import User
 from app.auth.schemas import Login2FARequest, LoginRequest, LoginResponse, RefreshRequest, TokenPair, UserOut
 from app.auth.twofa import TwoFALocked, verify_second_factor
 from app.core.db import get_db
-from app.core.security import InvalidToken, create_token, decode_token, verify_password
+from app.core.security import InvalidToken, create_token, decode_token
 
 router = APIRouter(prefix="/auth", tags=["autentificare"])
 
@@ -23,16 +24,25 @@ def _finish_login(db: Session, user: User) -> LoginResponse:
     user.last_login_at = datetime.now()
     write_audit(db, action="login", entity="users", entity_id=user.id, user_id=user.id)
     db.commit()
-    return LoginResponse(**_token_pair(user).model_dump())
+    return LoginResponse(**_token_pair(user).model_dump(), must_change_password=bool(user.must_change_password))
 
 
 @router.post("/login", response_model=LoginResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
-    user = db.scalar(select(User).where(func.lower(User.email) == body.email.strip().lower()))
-    if user is None or user.is_active is False or not verify_password(user.password_hash, body.password):
+    # rândul se blochează: încercările paralele nu pot ocoli contorul
+    user = db.scalar(select(User).where(func.lower(User.email) == body.email.strip().lower()).with_for_update())
+    if user is None or user.is_active is False:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mail sau parolă greșită")
+    try:
+        ok = check_password(db, user, body.password)
+    except PasswordLocked:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Prea multe încercări; încearcă peste câteva minute") from None
+    if not ok:
+        db.commit()  # păstrează contorul de încercări greșite
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mail sau parolă greșită")
     if user.totp_enabled:
         # parola e corectă, dar accesul se dă abia după codul 2FA
+        db.commit()  # contorul de parole greșite a fost resetat
         return LoginResponse(requires_2fa=True, challenge_token=create_token(user.id, "challenge"))
     return _finish_login(db, user)
 
@@ -69,5 +79,5 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair:
 
 
 @router.get("/me", response_model=UserOut)
-def me(user: User = Depends(get_current_user)) -> User:
+def me(user: User = Depends(get_current_user_pending)) -> User:
     return user

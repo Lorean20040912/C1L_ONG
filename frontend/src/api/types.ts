@@ -6,6 +6,7 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
+  must_change_password?: boolean;
 }
 
 export interface OrganizationBrief {

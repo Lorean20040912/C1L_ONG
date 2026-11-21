@@ -30,7 +30,7 @@ ADMIN_ROLES = frozenset({UserRole.admin, UserRole.chief_accountant})
 USER_ADMIN_ROLES = frozenset({UserRole.admin})
 
 
-def get_current_user(
+def get_current_user_pending(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> User:
@@ -48,6 +48,13 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or user.is_active is False:
         raise unauthorized
+    return user
+
+
+def get_current_user(user: User = Depends(get_current_user_pending)) -> User:
+    """Utilizatorul curent; cu parola inițială încă neschimbată accesul e refuzat (doar /auth/me și /auth/password rămân)."""
+    if user.must_change_password:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Schimbați parola inițială înainte de a continua")
     return user
 
 

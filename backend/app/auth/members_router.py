@@ -100,7 +100,7 @@ def add_member(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, "Pentru un utilizator nou completați numele și parola inițială"
             )
-        user = User(email=email, full_name=body.full_name.strip(), password_hash=hash_password(body.password))
+        user = User(email=email, full_name=body.full_name.strip(), password_hash=hash_password(body.password), must_change_password=True)
         db.add(user)
         db.flush()
     elif db.scalar(
@@ -109,6 +109,9 @@ def add_member(
         )
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, "Utilizatorul face deja parte din organizație")
+    reactivated = not created and user.is_active is False
+    if reactivated:
+        user.is_active = True  # contul fusese dezactivat la retragerea din toate organizațiile
     member = OrganizationMember(organization_id=ctx.organization_id, user_id=user.id, role=body.role)
     db.add(member)
     db.flush()
@@ -119,7 +122,7 @@ def add_member(
         entity_id=member.id,
         organization_id=ctx.organization_id,
         user_id=ctx.user.id,
-        new_values={"email": email, "role": body.role.value, "new_user": created},
+        new_values={"email": email, "role": body.role.value, "new_user": created, "reactivated": reactivated},
     )
     db.commit()
     return _out(member, user)
@@ -168,5 +171,22 @@ def remove_member(
         user_id=ctx.user.id,
         old_values={"user_id": str(member.user_id), "role": member.role.value},
     )
+    user = db.scalar(select(User).where(User.id == member.user_id).with_for_update())
     db.delete(member)
+    db.flush()
+    if user.is_active is not False and not db.scalar(
+        select(func.count()).select_from(OrganizationMember).where(OrganizationMember.user_id == user.id)
+    ):
+        # fără nicio organizație contul nu mai are rost: se dezactivează (accesul nu se mai poate reface singur)
+        user.is_active = False
+        write_audit(
+            db,
+            action="update",
+            entity="users",
+            entity_id=user.id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user.id,
+            old_values={"is_active": True},
+            new_values={"is_active": False, "reason": "retras din toate organizațiile"},
+        )
     db.commit()
