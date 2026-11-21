@@ -37,6 +37,7 @@ class StepOut(BaseModel):
     entries: int | None = None
     total: Decimal | None = None
     issues: list[str] = []
+    document_id: uuid.UUID | None = None  # documentul pasului (ex. salariile lunii)
 
 
 class MonthCloseOut(BaseModel):

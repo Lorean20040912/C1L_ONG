@@ -215,6 +215,7 @@ export interface MonthCloseStep {
   entries: number | null;
   total: string | null;
   issues: string[];
+  document_id?: string | null;
 }
 
 export interface StepPreview {
