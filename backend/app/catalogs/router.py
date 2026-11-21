@@ -7,14 +7,12 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.audit.service import write_audit
-from app.auth.deps import POSTING_ROLES, OrgContext, get_org_context
+from app.auth.deps import ADMIN_ROLES, POSTING_ROLES, OrgContext, get_org_context
 from app.bank.models import BankAccount
 from app.catalogs.models import Account, Counterparty
 from app.core.db import get_db
-from app.core.enums import AccountKind, UserRole
+from app.core.enums import AccountKind
 from app.grants.models import BudgetLine, Grant
-
-ADMIN_ROLES = frozenset({UserRole.admin, UserRole.chief_accountant})
 
 router = APIRouter(prefix="/organizations/{organization_id}", tags=["cataloage"])
 

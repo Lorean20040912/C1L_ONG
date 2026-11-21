@@ -23,6 +23,10 @@ _bearer = HTTPBearer(auto_error=False)
 
 # cine poate înregistra și anula documente
 POSTING_ROLES = frozenset({UserRole.admin, UserRole.chief_accountant, UserRole.accountant})
+# setările contabile ale organizației: politica, regulile, perioadele, conturile bancare
+ADMIN_ROLES = frozenset({UserRole.admin, UserRole.chief_accountant})
+# utilizatorii și drepturile (ToR §3: Administrator)
+USER_ADMIN_ROLES = frozenset({UserRole.admin})
 
 
 def get_current_user(
