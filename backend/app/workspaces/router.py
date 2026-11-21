@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -9,6 +10,7 @@ from app.auth.deps import get_current_user
 from app.auth.models import OrganizationMember, User
 from app.core.db import get_db
 from app.core.enums import AccountingMethod, EntityType, UserRole
+from app.features.service import enable_defaults
 from app.workspaces.models import Organization, Workspace
 from app.workspaces.schemas import OrganizationBrief, WorkspaceCreate, WorkspaceOut
 
@@ -66,6 +68,7 @@ def create_workspace(
     )
     db.add(org)
     db.flush()
+    enable_defaults(db, org, date.today())
     # cine creează baza o administrează
     db.add(OrganizationMember(organization_id=org.id, user_id=user.id, role=UserRole.admin))
     write_audit(

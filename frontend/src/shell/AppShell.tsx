@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { ROLE_LABELS, type OrganizationBrief, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { FeaturesScreen } from "../screens/admin/FeaturesScreen";
+import { SimpleJournal } from "../screens/SimpleJournal";
 import { AccountsScreen } from "../screens/admin/AccountsScreen";
 import { BankImportScreen } from "../screens/bank/BankImportScreen";
 import { ExchangeRatesScreen } from "../screens/bank/ExchangeRatesScreen";
@@ -34,6 +36,7 @@ import { RegulatedReport } from "../screens/reports/RegulatedReport";
 import { ReportingDataScreen } from "../screens/reports/ReportingDataScreen";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
+import { ProfileContext, useProfileLoader } from "./profile";
 import { SECTIONS } from "./sections";
 import { SectionPanel } from "./SectionPanel";
 import { ShellContext, type ShellApi, type Tab } from "./tabs";
@@ -61,6 +64,7 @@ export function AppShell() {
     setActive(HOME.id);
   }, [orgId]);
 
+  const profile = useProfileLoader(orgId);
   const org = useMemo(() => orgs.find((o) => o.id === orgId), [orgs, orgId]);
 
   const openTab = useCallback((tab: Tab) => {
@@ -117,6 +121,7 @@ export function AppShell() {
 
   return (
     <ShellContext.Provider value={shell}>
+      <ProfileContext.Provider value={profile}>
       <div className="shell">
         <header className="shell-top">
           <button className="link" onClick={() => navigate("/")} title="Bazele mele" aria-label="Bazele mele">
@@ -146,7 +151,7 @@ export function AppShell() {
         </header>
 
         <nav className="sections" aria-label="Secțiuni">
-          {SECTIONS.map((s) => {
+          {SECTIONS.filter((s) => profile.sectionVisible(s.id)).map((s) => {
             const id = s.id === "home" ? HOME.id : `section:${s.id}`;
             return (
               <button
@@ -200,6 +205,7 @@ export function AppShell() {
           ))}
         </main>
       </div>
+      </ProfileContext.Provider>
     </ShellContext.Provider>
   );
 }
@@ -271,6 +277,10 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <AccountReports mode="analysis" accountId={p.accountId} />;
     case "cost-items":
       return <CostItemsScreen />;
+    case "features":
+      return <FeaturesScreen />;
+    case "simple-journal":
+      return <SimpleJournal />;
     case "reporting-data":
       return <ReportingDataScreen />;
     case "dtkt":

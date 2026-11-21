@@ -38,7 +38,7 @@ def engine():
     cfg = Config(os.path.join(BACKEND_DIR, "alembic.ini"))
     cfg.set_main_option("script_location", os.path.join(BACKEND_DIR, "alembic"))
     cfg.attributes["database_url"] = TEST_DATABASE_URL
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "heads")
     yield eng
     eng.dispose()
 

@@ -5,6 +5,7 @@ from app.bank.models import BankAccount, BankFormat, BankImport, BankTransaction
 from app.auth.models import OrganizationMember, User
 from app.catalogs.models import Account, AccountAnalytics, Counterparty, Department
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
+from app.features.models import CoaTemplate, Feature, OrganizationFeature, OrganizationTaxRegime
 from app.fixed_assets.models import FixedAsset
 from app.grants.models import BudgetLine, CostItem, Grant
 from app.month_close.models import MonthCloseRun
@@ -26,6 +27,7 @@ from app.posting.models import (
     PostingRule,
 )
 from app.regulated.models import OrganizationStats, ReportForm, ReportingCalendar, TaxReport
+from app.simple_ledger.models import SimpleLedgerEntry
 from app.taxes.models import TaxRate
 from app.workspaces.models import Organization, Workspace
 
@@ -44,6 +46,7 @@ __all__ = [
     "CostItem",
     "Contract",
     "ContractFunding",
+    "CoaTemplate",
     "Counterparty",
     "Department",
     "Document",
@@ -51,6 +54,7 @@ __all__ = [
     "EntryLine",
     "EntryLineAnalytics",
     "ExemptionClaim",
+    "Feature",
     "FixedAsset",
     "Grant",
     "IndividualPayment",
@@ -58,8 +62,10 @@ __all__ = [
     "InvoiceLine",
     "MonthCloseRun",
     "Organization",
+    "OrganizationFeature",
     "OrganizationMember",
     "PaymentBatch",
+    "OrganizationTaxRegime",
     "PaymentOrder",
     "PaymentOrderLine",
     "PayrollEntry",
@@ -69,6 +75,7 @@ __all__ = [
     "PostingRule",
     "ReportForm",
     "ReportingCalendar",
+    "SimpleLedgerEntry",
     "TaxReport",
     "TaxRate",
     "User",

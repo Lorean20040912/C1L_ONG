@@ -14,6 +14,7 @@ from app.core.db import get_db
 from app.documents.invoices_router import router as invoices_router
 from app.documents.payments_router import router as payments_router
 from app.documents.router import router as documents_router
+from app.features.router import router as features_router
 from app.grants.admin_router import router as grants_admin_router
 from app.grants.router import router as grants_router
 from app.individual_payments.router import router as individual_payments_router
@@ -26,6 +27,7 @@ from app.regulated.settings_router import router as regulated_settings_router
 from app.reports.accounts_router import router as account_reports_router
 from app.reports.router import router as reports_router
 from app.posting.rules_router import router as rules_router
+from app.simple_ledger.router import router as simple_ledger_router
 from app.workspaces.router import router as workspaces_router
 
 app = FastAPI(title="ContaHub API", version="0.1.0")
@@ -41,6 +43,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(catalogs_router)
 app.include_router(workspaces_router)
+app.include_router(features_router)
+app.include_router(simple_ledger_router)
 app.include_router(documents_router)
 app.include_router(invoices_router)
 app.include_router(payments_router)

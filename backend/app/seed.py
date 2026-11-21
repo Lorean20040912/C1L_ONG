@@ -18,6 +18,8 @@ from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.enums import AccountKind, EntityType, UserRole
 from app.core.security import hash_password
+from app.features.models import OrganizationFeature
+from app.features.service import enable_defaults
 from app.grants.models import BudgetLine, Grant
 from app.posting.models import AccountingPolicy
 from app.workspaces.models import Organization, Workspace
@@ -80,6 +82,8 @@ def run() -> None:
         db.add(org)
         db.flush()
         db.add(OrganizationMember(organization_id=org.id, user_id=user.id, role=UserRole.admin))
+        enable_defaults(db, org, date(2026, 1, 1))
+        db.add(OrganizationFeature(organization_id=org.id, feature_code="payroll", enabled_from=date(2026, 1, 1)))
         accounts = {
             code: Account(organization_id=org.id, code=code, name=name, account_kind=kind)
             for code, name, kind in DEMO_ACCOUNTS
