@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import { ROLE_LABELS, type OrganizationBrief, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { FeaturesScreen } from "../screens/admin/FeaturesScreen";
+import { AssistantScreen } from "../screens/AssistantScreen";
 import { SimpleJournal } from "../screens/SimpleJournal";
 import { AccountsScreen } from "../screens/admin/AccountsScreen";
 import { BankImportScreen } from "../screens/bank/BankImportScreen";
@@ -297,6 +298,8 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <CostItemsScreen />;
     case "features":
       return <FeaturesScreen />;
+    case "assistant":
+      return <AssistantScreen />;
     case "simple-journal":
       return <SimpleJournal />;
     case "reporting-data":

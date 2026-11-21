@@ -45,7 +45,8 @@ export type TabKind =
   | "audit"
   | "tasks"
   | "onec-import"
-  | "efactura";
+  | "efactura"
+  | "assistant";
 
 export interface Tab {
   id: string;
@@ -124,6 +125,7 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Sarcini și termene": "tasks",
   "Import din 1C": "onec-import",
   "e-Factura": "efactura",
+  "Asistent AI": "assistant",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];
