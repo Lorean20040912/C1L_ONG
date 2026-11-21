@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, ForeignKey, String, Text, text
+from sqlalchemy import BigInteger, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,6 +12,7 @@ from app.core.db import Base
 
 class AiConversation(Base):
     __tablename__ = "ai_conversations"
+    __table_args__ = (Index("ix_ai_conversations_org_user", "organization_id", "user_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
@@ -23,6 +24,7 @@ class AiConversation(Base):
 
 class AiMessage(Base):
     __tablename__ = "ai_messages"
+    __table_args__ = (Index("ix_ai_messages_conversation_id", "conversation_id"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ai_conversations.id"))
