@@ -44,21 +44,40 @@ def engine():
 
 
 @pytest.fixture
-def db(engine) -> Iterator[Session]:
-    connection = engine.connect()
-    outer = connection.begin()
+def connection(engine):
+    conn = engine.connect()
+    outer = conn.begin()
+    try:
+        yield conn
+    finally:
+        outer.rollback()
+        conn.close()
+
+
+@pytest.fixture
+def db(connection) -> Iterator[Session]:
     session = Session(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False)
     try:
         yield session
     finally:
         session.close()
-        outer.rollback()
-        connection.close()
 
 
 @pytest.fixture
-def client(db: Session) -> Iterator[TestClient]:
-    app.dependency_overrides[get_db] = lambda: db
+def client(db: Session, connection) -> Iterator[TestClient]:
+    """Fiecare cerere are sesiunea ei (ca în producție), pe aceeași conexiune de test:
+    un rollback după o eroare anulează doar cererea, nu și datele pregătite de test."""
+
+    def request_session() -> Iterator[Session]:
+        db.flush()
+        session = Session(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False)
+        try:
+            yield session
+        finally:
+            session.close()
+            db.expire_all()
+
+    app.dependency_overrides[get_db] = request_session
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
