@@ -25,7 +25,13 @@ export function PersonsScreen() {
 
   const edit = (p: Person | null) => {
     setEditId(p?.id ?? null);
-    setForm(p ? { full_name: p.full_name, idnp: p.idnp, birth_date: p.birth_date ?? "", cpas: p.cpas ?? "" } : EMPTY);
+    setForm(EMPTY);
+    if (!p) return;
+    // IDNP-ul complet se cere doar pentru formularul de editare
+    run(async () => {
+      const full = await api<Person>(`${base}/${p.id}`);
+      setForm({ full_name: full.full_name, idnp: full.idnp ?? "", birth_date: full.birth_date ?? "", cpas: full.cpas ?? "" });
+    });
   };
 
   const save = () =>

@@ -5,7 +5,8 @@ export type ContractType = "cim" | "civil";
 export interface Person {
   id: string;
   full_name: string;
-  idnp: string;
+  /** complet doar la GET /persons/{id}; în listă — null */
+  idnp: string | null;
   idnp_masked: string;
   birth_date: string | null;
   cpas: string | null;
