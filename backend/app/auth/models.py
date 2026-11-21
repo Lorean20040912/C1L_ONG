@@ -28,6 +28,8 @@ class User(Base):
     password_failures: Mapped[int] = mapped_column(Integer, server_default=text("0"), default=0)
     password_locked_until: Mapped[datetime | None] = mapped_column(TIMESTAMP)
     # parola inițială dată de administrator trebuie schimbată la prima intrare
+    # motivul dezactivării automate (doar un cont dezactivat de regulă poate fi reactivat de un administrator)
+    deactivated_reason: Mapped[str | None] = mapped_column(String)
     must_change_password: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
     created_at: Mapped[datetime | None] = mapped_column(TIMESTAMP, server_default=text("now()"))
 

@@ -58,14 +58,14 @@ def _check_password(db: Session, user: User, password: str) -> None:
 def change_password(
     body: PasswordChangeRequest, user: User = Depends(get_current_user_pending), db: Session = Depends(get_db)
 ) -> None:
-    user = _locked_user(db, user)
-    _check_password(db, user, body.current_password)
-    if user.totp_enabled:
-        _check_second_factor(db, user, body.code or "")
     if len(body.new_password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Parola nouă trebuie să aibă cel puțin {MIN_PASSWORD_LENGTH} caractere")
     if body.new_password == body.current_password:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Parola nouă trebuie să difere de cea curentă")
+    user = _locked_user(db, user)
+    _check_password(db, user, body.current_password)
+    if user.totp_enabled:
+        _check_second_factor(db, user, body.code or "")
     user.password_hash = hash_password(body.new_password)
     user.must_change_password = False
     write_audit(db, action="update", entity="users", entity_id=user.id, user_id=user.id, new_values={"field": "password"})

@@ -277,3 +277,34 @@ def test_rls_isolates_even_without_app_filters(db, connection):
         s.close()
     finally:
         connection.execute(text("RESET ROLE"))
+
+
+def test_removal_keeps_account_active_under_rls_role(client, db, connection):
+    """Sub un rol fără ocolirea RLS, numărarea organizațiilor rămase nu trebuie să vadă doar organizația curentă."""
+    admin = make_user(db, "adm2@x.md")
+    org_a, org_b = make_org(db, admin, "A", UserRole.admin), make_org(db, admin, "B", UserRole.admin)
+    guest = make_user(db, "guest2@x.md")
+    h = auth_headers(admin)
+    ma = client.post(f"/organizations/{org_a.id}/members", json={"email": "guest2@x.md", "role": "accountant"}, headers=h).json()
+    client.post(f"/organizations/{org_b.id}/members", json={"email": "guest2@x.md", "role": "accountant"}, headers=h)
+    db.flush()
+    # în producție fiecare cerere are tranzacția ei; aici contextul cererilor anterioare rămâne în tranzacția de test
+    connection.execute(text("SELECT set_config('app.org_id', '', true), set_config('app.user_id', '', true)"))
+    _probe_role(connection)
+    try:
+        r = client.delete(f"/organizations/{org_a.id}/members/{ma['id']}", headers=h)
+        assert r.status_code == 204, r.text
+    finally:
+        connection.execute(text("RESET ROLE"))
+    db.refresh(guest)
+    assert guest.is_active is not False
+
+
+def test_reactivation_only_for_auto_deactivated(client, db):
+    admin = make_user(db, "adm3@x.md")
+    org = make_org(db, admin, "A", UserRole.admin)
+    blocked = make_user(db, "blk@x.md")
+    blocked.is_active = False
+    db.flush()
+    r = client.post(f"/organizations/{org.id}/members", json={"email": "blk@x.md", "role": "accountant"}, headers=auth_headers(admin))
+    assert r.status_code == 409

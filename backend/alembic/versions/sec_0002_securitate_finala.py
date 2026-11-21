@@ -49,7 +49,8 @@ def _app_role() -> None:
         raise RuntimeError("APP_DB_USER invalid")
     if not password:
         raise RuntimeError("APP_DB_PASSWORD lipsește")
-    pw = "'" + password.replace("'", "''") + "'"
+    # ':' ar fi luat drept parametru de text(); în literalul SQL se scrie cu \\:
+    pw = "'" + password.replace("'", "''").replace(":", "\\:") + "'"
     op.execute(
         f"""
         DO $$ BEGIN
@@ -72,6 +73,7 @@ def _app_role() -> None:
 def upgrade() -> None:
     op.add_column("users", sa.Column("password_failures", sa.Integer(), server_default=sa.text("0"), nullable=False))
     op.add_column("users", sa.Column("password_locked_until", postgresql.TIMESTAMP(), nullable=True))
+    op.add_column("users", sa.Column("deactivated_reason", sa.String(), nullable=True))
     op.add_column("users", sa.Column("must_change_password", sa.Boolean(), server_default=sa.text("false"), nullable=False))
     for table in _missing_rls(op.get_bind()):
         for stmt in enable_rls_sql(table):
@@ -83,5 +85,5 @@ def downgrade() -> None:
     for table in LATE_TABLES:
         for stmt in disable_rls_sql(table):
             op.execute(stmt)
-    for col in ("must_change_password", "password_locked_until", "password_failures"):
+    for col in ("deactivated_reason", "must_change_password", "password_locked_until", "password_failures"):
         op.drop_column("users", col)
