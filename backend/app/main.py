@@ -9,6 +9,7 @@ from app.auth.router import router as auth_router
 from app.catalogs.router import router as catalogs_router
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.workspaces.router import router as workspaces_router
 
 app = FastAPI(title="ContaHub API", version="0.1.0")
 
@@ -22,6 +23,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(catalogs_router)
+app.include_router(workspaces_router)
 
 
 @app.get("/health", tags=["sistem"])
