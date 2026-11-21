@@ -9,6 +9,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://contahub:contahub@localhost:5432/contahub"
+    # rolul aplicației (fără superuser/BYPASSRLS), ca politicile RLS să se aplice; migrările și seed-ul
+    # folosesc `database_url` (proprietarul schemei). Gol = aplicația folosește `database_url`.
+    app_database_url: str | None = None
+    # crearea rolului de aplicație la migrare (parola vine din mediu)
+    app_db_user: str | None = None
+    app_db_password: str | None = None
+    # în producție: pornirea e refuzată dacă rolul bazei de date ocolește RLS
+    require_rls_role: bool = False
     redis_url: str = "redis://localhost:6379/0"
 
     jwt_secret: str = "schimba-acest-secret-in-env"
