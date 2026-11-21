@@ -50,7 +50,7 @@ Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flu
 | Nucleu, facturi, ordine de plată, execuția bugetului, OSV, operațiune manuală, Administrare | gata |
 | Închiderea lunii (toți pașii, inclusiv închiderea conturilor 6/7) | gata; pașii nu rulează și nu se anulează în luna închisă |
 | Salarii + IPC21 | gata (persoane, contracte, pontaj, plata cumulată, declarația); **cotele** de confirmat de contabilul-șef |
-| Rapoarte reglementate (ONG17, 5-CON, calendar) | gata; ONG17 doar Excel (nu are format XML) |
+| Rapoarte reglementate (ONG17, 5-CON, calendar) | gata; ONG17 și 5-CON și în XML; RSF2 (XML) din contabilitate |
 | Bancă (formate, import cu deduplicare, export ordine, curs BNM, diferențe de curs) | gata |
 | Granturi (donatori, versiuni, tranșe, distribuirea stocurilor, transfer 535, repartizare) | gata, inclusiv versiunile de buget cu proiect → aprobare (ADMIN_ROLES) și comparația cu realizatul |
 | Baza nouă + profiluri de funcționalități | gata (expertul, `features`, partida simplă) |
@@ -64,3 +64,4 @@ Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flu
 2. **Schema XML 5-CON**: de aliniat exportul la `5CON_xsd_2023` față de varianta `5-CON` implementată (`docs/07-specificatie-5CON.md`).
 3. ~~Versiuni de buget avansate~~ — făcut: `POST /budget-versions` cu `draft`, `PATCH`/`DELETE` pe proiect, `POST …/approve`, `GET /budget-comparison` (versiune vs versiune vs realizat); ecran în „Donatori, versiuni de buget și tranșe”.
 4. **Docker**: fluxul a fost verificat fără Docker (indisponibil în mediul de verificare); `docker compose up --build` de rulat o dată pe o mașină cu Docker.
+5. **RSF2** (`GET /organizations/{id}/reports/rsf2.xml?year=`, `regulated/rsf2.py`): structura XML este cea din `docs/exemple-fisc/rsf2.xml` (testată în `tests/test_rsf2.py`), dar corespondența conturi → rânduri este o ipoteză de lucru (descrisă în docstring-ul modulului; formularul oficial nu e în depozit) — de confirmat de contabilul-șef. Rămân 0: rândurile de active imobilizate în afara r030/r110 (terenuri, clădiri, obiecte de mică valoare etc.), r090/r230..r250/r270..r300 din bilanț, impozitul și rândurile r070..r100 din rezultat. Nu se completează (rămân goale/0) telefonul, adresa, site-ul, e-mailul (organizația nu are aceste câmpuri) și fișierele atașate (`dinamicAttachments`). Sumele sunt în lei întregi.
