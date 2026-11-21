@@ -11,6 +11,8 @@ import { PeriodsScreen } from "../screens/admin/PeriodsScreen";
 import { PolicyScreen } from "../screens/admin/PolicyScreen";
 import { RulesScreen } from "../screens/admin/RulesScreen";
 import { BudgetExecution } from "../screens/BudgetExecution";
+import { ManualOperation } from "../screens/ManualOperation";
+import { TrialBalance } from "../screens/TrialBalance";
 import { FixedAssets } from "../screens/FixedAssets";
 import { InvoiceForm } from "../screens/InvoiceForm";
 import { InvoiceList } from "../screens/InvoiceList";
@@ -227,6 +229,10 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <PeriodsScreen />;
     case "accounts":
       return <AccountsScreen />;
+    case "trial-balance":
+      return <TrialBalance />;
+    case "manual":
+      return <ManualOperation tabId={tab.id} />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:

@@ -19,7 +19,9 @@ export type TabKind =
   | "bank-accounts"
   | "members"
   | "periods"
-  | "accounts";
+  | "accounts"
+  | "trial-balance"
+  | "manual";
 
 export interface Tab {
   id: string;
@@ -66,6 +68,8 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Utilizatori și drepturi": "members",
   "Perioade închise": "periods",
   "Planul de conturi": "accounts",
+  "Balanța de verificare (OSV)": "trial-balance",
+  "Operațiune manuală": "manual",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];

@@ -1,5 +1,5 @@
 import type { Section } from "./sections";
-import { SCREEN_LINKS, useShell } from "./tabs";
+import { SCREEN_LINKS, newId, useShell } from "./tabs";
 
 export function SectionPanel({ section }: { section: Section }) {
   const { openTab } = useShell();
@@ -20,7 +20,7 @@ export function SectionPanel({ section }: { section: Section }) {
                     <button
                       className="link"
                       onClick={() =>
-                        openTab(kind ? { id: kind, title, kind } : { id: `screen:${section.id}:${title}`, title, kind: "placeholder" })
+                        openTab(kind === "manual" ? { id: newId("manual"), title, kind } : kind ? { id: kind, title, kind } : { id: `screen:${section.id}:${title}`, title, kind: "placeholder" })
                       }
                     >
                       {title}
