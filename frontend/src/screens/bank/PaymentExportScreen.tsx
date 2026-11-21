@@ -22,7 +22,7 @@ export function PaymentExportScreen() {
 
   const load = useCallback(() => {
     api<PaymentOrder[]>(`/organizations/${orgId}/payment-orders`)
-      .then((rows) => setOrders(rows.filter((o) => o.direction === "outgoing")))
+      .then((rows) => setOrders(rows.filter((o) => o.direction === "outgoing" && !o.is_posted)))
       .catch(() => {});
     api<PaymentBatch[]>(`/organizations/${orgId}/payment-batches`).then(setBatches).catch(() => {});
   }, [orgId]);

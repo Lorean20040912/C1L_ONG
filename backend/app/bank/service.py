@@ -306,6 +306,9 @@ def post_transactions(
         except PostingError as exc:
             savepoint.rollback()
             results[tx.id] = str(exc)
+        except Exception:  # noqa: BLE001 - o eroare neprevăzută nu strică celelalte rânduri
+            savepoint.rollback()
+            results[tx.id] = "Rândul nu a putut fi înregistrat"
     return results
 
 

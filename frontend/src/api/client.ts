@@ -113,6 +113,8 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   const a = document.createElement("a");
   a.href = url;
   a.download = match?.[1] ?? fallbackName;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

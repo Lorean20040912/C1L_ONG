@@ -64,8 +64,11 @@ def parse_bnm_xml(data: bytes) -> dict[str, Decimal]:
             value = Decimal((valute.findtext("Value") or "").strip().replace(",", "."))
         except InvalidOperation:
             continue
-        if code and nominal > 0:
-            rates[code] = (value / nominal).quantize(RATE_PLACES)
+        if code and nominal.is_finite() and value.is_finite() and nominal > 0 and value > 0:
+            try:
+                rates[code] = (value / nominal).quantize(RATE_PLACES)
+            except InvalidOperation:
+                continue
     if not rates:
         raise RateError("Răspunsul BNM nu conține cursuri")
     return rates
