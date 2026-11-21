@@ -46,10 +46,14 @@ export const ENTITY_LABELS: Record<EntityType, string> = {
 
 // ───────────── cataloage ─────────────
 
+export type AccountKind = "active" | "passive" | "active_passive";
+
 export interface Account {
   id: string;
   code: string;
   name: string;
+  parent_id?: string | null;
+  account_kind?: AccountKind;
   is_group: boolean | null;
 }
 
@@ -260,4 +264,84 @@ export interface FixedAsset {
   document_id: string | null;
   accumulated: string;
   book_value: string;
+}
+
+// ───────────── administrare ─────────────
+
+export interface GrantDetail {
+  id: string;
+  code: string;
+  title: string;
+  funding_type: string | null;
+  designation_year: number | null;
+  currency: string;
+  total_amount: string;
+  account_id: string | null;
+  start_date: string;
+  end_date: string;
+  is_closed: boolean | null;
+}
+
+export interface BudgetLineDetail {
+  id: string;
+  grant_id: string;
+  code: string;
+  name: string;
+  planned_amount: string;
+  donor_amount: string | null;
+  cofinancing_amount: string | null;
+  in_use: boolean;
+}
+
+export const FUNDING_LABELS: Record<string, string> = {
+  grant: "Grant (destinație specială)",
+  "donație": "Donație cu destinație",
+  "cotizații": "Cotizații (nepredestinate)",
+  unrestricted: "Mijloace nepredestinate",
+  economic: "Activitate economică",
+  percentage_designation: "Desemnare procentuală",
+};
+
+export interface AccountingPolicy {
+  id: string;
+  valid_from: string;
+  grant_receivable_account_id: string | null;
+  grant_recognition: string | null;
+  stock_to_deferred_income: string | null;
+  fa_valuation_method: string | null;
+  approved_by_name: string | null;
+}
+
+export interface PostingRule {
+  id: string;
+  organization_id: string | null;
+  document_type: string;
+  operation: string;
+  conditions: Record<string, unknown> | null;
+  debit_account: string;
+  credit_account: string;
+  analytics: Record<string, unknown> | null;
+  source_ref: string;
+  valid_from: string;
+  valid_to: string | null;
+  version: number | null;
+  change_reason: string | null;
+}
+
+export interface Member {
+  id: string;
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  is_active: boolean | null;
+  last_login_at: string | null;
+}
+
+export interface Period {
+  year: number;
+  month: number;
+  is_closed: boolean;
+  closed_at: string | null;
+  closed_by_name: string | null;
 }

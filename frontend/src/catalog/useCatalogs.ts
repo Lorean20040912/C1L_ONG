@@ -24,13 +24,23 @@ function load(orgId: string): Promise<Catalogs> {
   ]).then(([accounts, counterparties, grants, bankAccounts]) => ({ accounts, counterparties, grants, bankAccounts }));
 }
 
+const CHANGED = "contahub:catalogs-changed";
+
+/** După o modificare în Administrare (grant, cont bancar, cont nou...): toate ecranele reîncarcă cataloagele. */
 export function refreshCatalogs(orgId: string): void {
   cache.delete(orgId);
+  window.dispatchEvent(new CustomEvent(CHANGED, { detail: orgId }));
 }
 
 export function useCatalogs(orgId: string): { catalogs: Catalogs; error: string | null } {
   const [catalogs, setCatalogs] = useState<Catalogs>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const listener = (e: Event) => (e as CustomEvent<string>).detail === orgId && setVersion((v) => v + 1);
+    window.addEventListener(CHANGED, listener);
+    return () => window.removeEventListener(CHANGED, listener);
+  }, [orgId]);
   useEffect(() => {
     let alive = true;
     if (!cache.has(orgId)) cache.set(orgId, load(orgId));
@@ -44,7 +54,7 @@ export function useCatalogs(orgId: string): { catalogs: Catalogs; error: string 
     return () => {
       alive = false;
     };
-  }, [orgId]);
+  }, [orgId, version]);
   return { catalogs, error };
 }
 
