@@ -1,6 +1,7 @@
 """Factura primită: listă, creare, modificare, Dt/Kt (previzualizare), înregistrare, anulare."""
 
 import uuid
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
@@ -16,7 +17,9 @@ from app.core.db import get_db
 from app.core.enums import DocumentType, LineKind
 from app.documents.models import Document, Invoice, InvoiceLine
 from app.documents.posting import post_invoice, preview_invoice, unpost_invoice
+from app.grants.budget import check_amounts, check_document
 from app.grants.models import BudgetLine, CostItem, Grant
+from app.grants.router import BudgetWarningOut, warnings_out
 from app.posting.engine import PostingError
 from app.posting.router import EntryLineOut, PreviewLine, http_error, preview_out
 
@@ -252,17 +255,45 @@ def preview(
         raise http_error(exc) from None
 
 
-@router.post("/{document_id}/post", response_model=list[EntryLineOut])
-def post(document_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)):
+class PostResult(BaseModel):
+    entries: list[EntryLineOut]
+    warnings: list[BudgetWarningOut]
+
+
+@router.get("/{document_id}/budget-check", response_model=list[BudgetWarningOut])
+def budget_check(
+    document_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+) -> list[BudgetWarningOut]:
+    """Depășirile de buget pe care le produce (sau le-a produs) factura."""
+    doc, _ = _get(db, ctx, document_id)
+    if doc.is_posted:
+        return warnings_out(check_document(db, ctx.organization_id, document_id))
+    try:
+        generated = preview_invoice(db, ctx.organization_id, document_id)
+    except PostingError as exc:
+        raise http_error(exc) from None
+    amounts: dict = defaultdict(Decimal)
+    for g in generated:
+        if g.line.budget_line_id:
+            amounts[g.line.budget_line_id] += g.line.amount
+    return warnings_out(check_amounts(db, ctx.organization_id, dict(amounts), exclude_document=document_id))
+
+
+@router.post("/{document_id}/post", response_model=PostResult)
+def post(
+    document_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+) -> PostResult:
+    """Înregistrează factura; depășirea bugetului nu blochează, dar se întoarce ca avertisment."""
     ctx.require(POSTING_ROLES)
     _get(db, ctx, document_id)
     try:
         created = post_invoice(db, ctx.organization_id, document_id, ctx.user.id)
+        warnings = check_document(db, ctx.organization_id, document_id)
     except PostingError as exc:
         db.rollback()
         raise http_error(exc) from None
     db.commit()
-    return created
+    return PostResult(entries=[EntryLineOut.model_validate(e) for e in created], warnings=warnings_out(warnings))
 
 
 @router.post("/{document_id}/unpost", status_code=status.HTTP_204_NO_CONTENT)
