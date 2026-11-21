@@ -430,3 +430,23 @@ def test_o_zi_fara_finantare_opreste_calculul(db, ong):
     c.funding[0].valid_to = date(2026, 11, 20)
     db.flush()
     assert "21.11.2026" in calc_of(db, c).error
+
+
+def test_cotele_confirmate_nu_mai_sunt_marcate_de_verificat(db):
+    """fix_0004: valorile rămân, doar temeiul legal pierde marcajul pentru cotele confirmate."""
+    rows = {
+        (r.code, r.applies_to.value if r.applies_to else None): r
+        for r in db.scalars(select(TaxRate).where(TaxRate.valid_to.is_(None)))
+    }
+    for key, value in {
+        ("INCOME_TAX", "cim"): "12",
+        ("CNAM_EMPLOYEE", None): "9",
+        ("CNAS_EMPLOYER", None): "24",
+        ("PERSONAL_EXEMPTION_YEAR", "cim"): "29700",
+        ("MAJOR_PERSONAL_EXEMPTION_YEAR", "cim"): "30000",
+        ("DEPENDENT_EXEMPTION_YEAR", "cim"): "9900",
+        ("DISABLED_DEPENDENT_EXEMPTION_YEAR", "cim"): "30000",
+        ("WITHHOLDING_FOL", None): "7",
+    }.items():
+        assert rows[key].value == Decimal(value)
+        assert "de verificat" not in rows[key].legal_basis
