@@ -423,7 +423,7 @@ def put_rate(body: RateIn, ctx: OrgContext = Depends(get_org_context), db: Sessi
     write_audit(db, action="update", entity="exchange_rates", organization_id=ctx.organization_id, user_id=ctx.user.id,
                 new_values=body.model_dump(mode="json"))  # fmt: skip
     db.commit()
-    return RateOut(**body.model_dump(), source="manual")
+    return RateOut(**{**body.model_dump(), "currency": body.currency.upper()}, source="manual")
 
 
 @router.post("/exchange-rates/bnm", response_model=list[RateOut])

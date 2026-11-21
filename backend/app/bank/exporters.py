@@ -131,7 +131,11 @@ def export_orders(orders: list[ExportOrder], layout: dict, encoding: str | None)
     total = sum((o.amount for o in orders), Decimal(0))
     fields = layout.get("fields") or []
     if exporter == "dbf":
-        records = [[_value(o, f) for f in fields] for o in orders]
+        def cell(o, f):
+            v = _value(o, f)
+            return v if f.get("type", "C") in ("D", "N") else _fmt(v, f)
+
+        records = [[cell(o, f) for f in fields] for o in orders]
         if layout.get("total_row_first"):
             records.insert(0, [_value(None, f, total) for f in fields])
         return write_dbf(fields, records, encoding)
