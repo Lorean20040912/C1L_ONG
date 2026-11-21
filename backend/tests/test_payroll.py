@@ -23,7 +23,7 @@ from app.documents.posting import post_payment
 from app.grants.models import BudgetLine, Grant
 from app.individual_payments.posting import post as post_individual
 from app.month_close.service import get_run, revert_step, run_step
-from app.payroll import calc, ipc21
+from app.payroll import calc, ipc21, irm19
 from app.payroll.models import Contract, ContractFunding, ExemptionClaim, IndividualPayment, PayrollEntry, Person
 from app.payroll.service import (
     GroupedPaymentInput,
@@ -468,3 +468,24 @@ def test_ipc21_gol_are_aceeasi_structura(db, ong):
     _, org, *_ = ong
     xml = ipc21.to_xml(ipc21.build(db, org.id, Y, M))
     assert_same_structure(xml, "ipc21.xml")
+
+
+def test_irm19_angajarea_pe_perioada_determinata(db, ong):
+    _, org, *_ = ong
+    c = contract(db, person(db, org), start=date(2026, 11, 3), end=date(2027, 3, 31), funding=[])
+    contract(db, person(db, org, name="Altă lună", idnp="2009876543210"), start=date(2026, 10, 1), end=date(2027, 1, 1), funding=[])
+    report = irm19.build(db, org.id, Y, M)
+    assert report.errors == [] and [r.full_name for r in report.rows] == ["Popescu Ion"] and c.start_date
+    xml = irm19.to_xml(report)
+    assert_format(xml, "irm19.xml")
+    assert_same_structure(xml, "irm19.xml")
+    row = ET.fromstring(xml).find("dinamicTable/row")
+    assert row.find("c3").text == "2001234567890" and row.find("c10").text == "03.11.2026"
+    assert row.find("c8").text == "05" and row.find("c8").attrib["title"].startswith("05, ANGAJARE PE PERIOADĂ")
+
+
+def test_irm19_fara_angajari_si_cod_necunoscut(db, ong):
+    _, org, *_ = ong
+    assert_same_structure(irm19.to_xml(irm19.build(db, org.id, Y, M)), "irm19.xml")
+    contract(db, person(db, org), start=date(2026, 11, 3), funding=[])  # fără dată de sfârșit: codul evenimentului nu e cunoscut
+    assert any("codul evenimentului" in e for e in irm19.build(db, org.id, Y, M).errors)

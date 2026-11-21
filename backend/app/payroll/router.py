@@ -18,7 +18,7 @@ from app.core import crypto
 from app.core.db import get_db
 from app.core.enums import ContractType
 from app.documents.models import Document, PaymentOrder, PaymentOrderLine
-from app.payroll import ipc21
+from app.payroll import ipc21, irm19
 from app.payroll.calc import active_contracts, ensure_budget_line, working_days
 from app.month_close.depreciation import month_bounds
 from app.payroll.models import Contract, ContractFunding, ExemptionClaim, IndividualPayment, PayrollEntry, PayrollInput, Person
@@ -812,4 +812,29 @@ def ipc21_xml(year: int, month: int, ctx: OrgContext = Depends(get_org_context),
         content=ipc21.to_xml(r),
         media_type="application/xml",
         headers={"Content-Disposition": f'attachment; filename="IPC21_{year}_{month:02d}.xml"'},
+    )
+
+
+@router.get("/reports/irm19/{year}/{month}/xml")
+def irm19_xml(year: int, month: int, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)):
+    """IRM19 — angajările lunii; cu erori de verificare nu se exportă."""
+    ctx.require(POSTING_ROLES)
+    if not 1 <= month <= 12:
+        raise _unprocessable("Luna trebuie să fie între 1 și 12")
+    r = irm19.build(db, ctx.organization_id, year, month)
+    if r.errors:
+        raise _unprocessable("IRM19 are erori de verificare: " + "; ".join(r.errors))
+    write_audit(
+        db,
+        action="export",
+        entity="tax_reports",
+        organization_id=ctx.organization_id,
+        user_id=ctx.user.id,
+        new_values={"form": "IRM19", "period": f"{month:02d}.{year}"},
+    )
+    db.commit()
+    return Response(
+        content=irm19.to_xml(r),
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="IRM19_{year}_{month:02d}.xml"'},
     )

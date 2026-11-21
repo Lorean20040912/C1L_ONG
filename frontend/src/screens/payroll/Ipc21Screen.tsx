@@ -24,6 +24,10 @@ export function Ipc21Screen() {
   useEffect(load, [load]);
 
   const download = () => run(() => apiDownload(`${base}/xml`, `IPC21_${year}_${String(month).padStart(2, "0")}.xml`));
+  const downloadIrm19 = () =>
+    run(() =>
+      apiDownload(`/organizations/${orgId}/reports/irm19/${year}/${month}/xml`, `IRM19_${year}_${String(month).padStart(2, "0")}.xml`),
+    );
   const rows = report?.table1.filter((r) => showAll || Number(r.c4) || Number(r.c5) || Number(r.c6)) ?? [];
 
   return (
@@ -44,6 +48,11 @@ export function Ipc21Screen() {
         {can(role, POSTING_ROLES) && (
           <button className="b primary" onClick={download} disabled={busy || !report || report.errors.length > 0}>
             Export XML (e-Cabinet SFS)
+          </button>
+        )}
+        {can(role, POSTING_ROLES) && (
+          <button className="b" onClick={downloadIrm19} disabled={busy}>
+            IRM19 — angajările lunii (XML)
           </button>
         )}
       </div>

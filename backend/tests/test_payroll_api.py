@@ -236,3 +236,13 @@ def test_pontaj_si_indemnizatie_de_boala(api):
         "person_id": civil["id"], "type": "civil", "number": "C-1", "start_date": "2026-01-01", "gross_amount": "2000",
         "funding": contract_body(p["id"], grants, lines)["funding"]}, headers=h).json()  # fmt: skip
     assert client.put(f"{url}/{cc['id']}", json={"worked_days": 5}, headers=h).status_code == 422
+
+
+def test_irm19_xml_prin_api(api):
+    client, h, org, grants, lines, bank = api
+    p = new_person(client, h, org)
+    body = contract_body(p["id"], grants, lines) | {"start_date": "2026-11-03", "end_date": "2027-03-31"}
+    assert client.post(f"{base(org)}/contracts", json=body, headers=h).status_code == 201
+    r = client.get(f"{base(org)}/reports/irm19/2026/11/xml", headers=h)
+    assert r.status_code == 200 and b'TypeName="irm19"' in r.content and b"<c10>03.11.2026</c10>" in r.content
+    assert client.get(f"{base(org)}/reports/irm19/2026/13/xml", headers=h).status_code == 422
