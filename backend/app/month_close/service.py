@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.bank.fx import fx_plan
 from app.core.enums import DocumentType
 from app.documents.models import Document
+from app.grants import allocation as grant_allocation
 from app.month_close.depreciation import DepreciationPlan, month_bounds, plan
 from app.month_close.models import MonthCloseRun
 from app.month_close.steps import StepResult, StepRow, checks, income_plan
@@ -27,12 +28,15 @@ from app.posting.engine import PostingError, post_document, unpost_document
 STEPS = [
     ("depreciation", "Calculul amortizării", True),
     ("payroll", "Calculul salariului", True),
-    ("grant_allocation", "Repartizarea cheltuielilor pe granturi", False),
+    ("grant_allocation", "Repartizarea cheltuielilor pe granturi", True),
     ("fx_difference", "Diferențe de curs valutar", True),
     ("special_purpose_income", "Recunoașterea veniturilor din mijloace cu destinație specială", True),
     ("account_closing", "Închiderea conturilor", False),
     ("checks", "Verificări (Dt = Kt, solduri negative, documente neînregistrate)", True),
 ]
+
+
+OPTIONAL_STEPS = {"grant_allocation"}
 
 
 def get_run(db: Session, organization_id: uuid.UUID, year: int, month: int, lock: bool = False) -> MonthCloseRun | None:
@@ -78,7 +82,8 @@ def _set_step(run: MonthCloseRun, step: str, **values) -> None:
     steps.append({"step": step, **values})
     order = [code for code, _, _ in STEPS]
     run.steps = sorted(steps, key=lambda s: order.index(s["step"]))  # listă nouă → SQLAlchemy vede schimbarea
-    implemented = [code for code, _, ok in STEPS if ok]
+    # repartizarea pe granturi e opțională: nu toate organizațiile au cheltuieli comune
+    implemented = [code for code, _, ok in STEPS if ok and code not in OPTIONAL_STEPS]
     statuses = {s["step"]: s.get("status") for s in run.steps}
     run.status = "done" if all(statuses.get(code) == "done" for code in implemented) else "draft"
 
@@ -130,7 +135,12 @@ def revert_depreciation(
 
 # ───────────── ceilalți pași: fiecare pas care înregistrează are documentul lui ─────────────
 
-STEP_DOCUMENT_SUFFIX = {"special_purpose_income": "VEN", "payroll": "SAL", "fx_difference": "CV"}
+STEP_DOCUMENT_SUFFIX = {
+    "special_purpose_income": "VEN",
+    "payroll": "SAL",
+    "grant_allocation": "REP",
+    "fx_difference": "CV",
+}
 
 
 def _step(run: MonthCloseRun | None, step: str) -> dict:
@@ -172,7 +182,14 @@ def _payroll(db: Session, organization_id: uuid.UUID, year: int, month: int) -> 
     return result, plan
 
 
-def preview_step(db: Session, organization_id: uuid.UUID, year: int, month: int, step: str) -> StepResult:
+def preview_step(
+    db: Session, organization_id: uuid.UUID, year: int, month: int, step: str, params: dict | None = None
+) -> StepResult:
+    if step == "grant_allocation":
+        run = get_run(db, organization_id, year, month)
+        saved = _step(run, step)
+        doc_id = uuid.UUID(saved["document_id"]) if saved.get("document_id") else None
+        return grant_allocation.plan(db, organization_id, year, month, params or saved.get("params"), doc_id)[0]
     if step == "payroll":
         return _payroll(db, organization_id, year, month)[0]
     if step == "checks":
@@ -190,15 +207,28 @@ def preview_step(db: Session, organization_id: uuid.UUID, year: int, month: int,
 
 
 def run_step(
-    db: Session, organization_id: uuid.UUID, year: int, month: int, step: str, user_id: uuid.UUID | None
+    db: Session,
+    organization_id: uuid.UUID,
+    year: int,
+    month: int,
+    step: str,
+    user_id: uuid.UUID | None,
+    params: dict | None = None,
 ) -> StepResult:
     run = _ensure_run(db, organization_id, year, month, user_id)
-    payroll_plan = None
-    if step == "payroll":
+    payroll_plan = allocations = None
+    if step == "grant_allocation":
+        saved = _step(run, step)
+        params = params or saved.get("params")
+        doc_id = uuid.UUID(saved["document_id"]) if saved.get("document_id") else None
+        result, allocations = grant_allocation.plan(db, organization_id, year, month, params, doc_id)
+    elif step == "payroll":
         result, payroll_plan = _payroll(db, organization_id, year, month)
     else:
         result = preview_step(db, organization_id, year, month, step)
     values: dict = {"status": "done", "entries": len(result.lines), "total": str(result.total)}
+    if step == "grant_allocation":
+        values["params"] = params
     if step == "checks":
         # verificările nu înregistrează; cu probleme pasul rămâne „de corectat”
         values = {"status": "error" if result.errors else "done", "entries": 0, "total": "0", "issues": result.errors}
@@ -216,6 +246,8 @@ def run_step(
             unpost_document(db, organization_id=organization_id, document_id=doc.id, user_id=user_id)
         if payroll_plan is not None:
             store_entries(db, organization_id, payroll_plan, user_id)
+        if allocations is not None:
+            grant_allocation.store(db, doc.id, allocations)
     run.run_by = user_id
     run.run_at = datetime.now()
     _set_step(run, step, **values)
@@ -232,6 +264,8 @@ def revert_step(
         raise PostingError("Pasul nu a fost executat")
     if step == "payroll":
         clear_entries(db, organization_id, year, month)
+    if step == "grant_allocation" and saved.get("document_id"):
+        grant_allocation.clear(db, uuid.UUID(saved["document_id"]))
     if saved.get("document_id"):
         doc = db.get(Document, uuid.UUID(saved["document_id"]))
         if doc.is_posted:

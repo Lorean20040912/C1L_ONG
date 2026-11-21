@@ -75,6 +75,8 @@ export interface Grant {
   code: string;
   title: string;
   funding_type: string | null;
+  currency?: string;
+  is_closed?: boolean | null;
   budget_lines: BudgetLine[];
 }
 

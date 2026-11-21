@@ -186,7 +186,7 @@ def test_api_inchiderea_lunii_si_fisele(client, db, ong):
 
     state = client.get(f"{base}/month-close/2026/4", headers=h).json()
     assert state["status"] == "draft" and state["steps"][0]["step"] == "depreciation"
-    assert [s["implemented"] for s in state["steps"]].count(True) == 5
+    assert [s["implemented"] for s in state["steps"]].count(True) == 6
 
     preview = client.post(f"{base}/month-close/2026/4/depreciation/preview", headers=h).json()
     assert preview["errors"] and preview["rows"][0]["error"]
@@ -290,7 +290,7 @@ def test_verificarile_lunii(client, db, ong):
     _manual_expense(db, org, acc, grant, user)
     assert not any("Contul 521" in e for e in client.post(f"{base}/preview", headers=h).json()["errors"])
     assert (
-        client.post(f"/organizations/{org.id}/month-close/2026/4/steps/grant_allocation/preview", headers=h).status_code == 404
+        client.post(f"/organizations/{org.id}/month-close/2026/4/steps/account_closing/preview", headers=h).status_code == 404
     )
 
 

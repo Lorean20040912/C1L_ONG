@@ -7,7 +7,7 @@ from app.catalogs.models import Account, AccountAnalytics, Counterparty, Departm
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
 from app.features.models import CoaTemplate, Feature, OrganizationFeature, OrganizationTaxRegime
 from app.fixed_assets.models import FixedAsset
-from app.grants.models import BudgetLine, CostItem, Grant
+from app.grants.models import Allocation, BudgetLine, BudgetVersion, CostItem, Donor, Grant, GrantDonor, GrantTranche
 from app.month_close.models import MonthCloseRun
 from app.payroll.models import (
     Contract,
@@ -57,6 +57,11 @@ __all__ = [
     "Feature",
     "FixedAsset",
     "Grant",
+    "GrantDonor",
+    "GrantTranche",
+    "Allocation",
+    "BudgetVersion",
+    "Donor",
     "IndividualPayment",
     "Invoice",
     "InvoiceLine",
