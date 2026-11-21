@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # cheia de criptare a datelor sensibile (IBAN-urile conturilor bancare); orice șir lung și aleator
+    encryption_key: str = "schimba-cheia-de-criptare-in-env"
+
     # utilizatorul demonstrativ creat de `python -m app.seed` (doar pentru dezvoltare)
     demo_email: str | None = None
     demo_password: str | None = None
