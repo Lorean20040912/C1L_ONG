@@ -353,5 +353,6 @@ def test_incasare_fara_grant_si_plata_cumulata(db, ong):
     with pytest.raises(PostingError, match="fără grant"):
         post_payment(db, org.id, doc.id, user.id)
     tax = make_payment(db, org, bank, "10", kind="grouped_tax")
-    with pytest.raises(PostingError, match="modulul salarii"):
+    # plata cumulată fără tipul obligației și fără rânduri pe persoane (vezi tests/test_payroll.py)
+    with pytest.raises(PostingError, match="tipul obligației"):
         post_payment(db, org.id, tax.id, user.id)
