@@ -51,6 +51,9 @@ def change_password(
     body: PasswordChangeRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> None:
     _check_password(user, body.current_password)
+    if user.totp_enabled:
+        user = _locked_user(db, user)
+        _check_second_factor(db, user, body.code or "")
     if len(body.new_password) < MIN_PASSWORD_LENGTH:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Parola nouă trebuie să aibă cel puțin {MIN_PASSWORD_LENGTH} caractere")
     if body.new_password == body.current_password:

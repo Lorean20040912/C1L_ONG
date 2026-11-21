@@ -51,6 +51,7 @@ class Login2FARequest(BaseModel):
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str
+    code: str | None = None  # obligatoriu când 2FA este activ
 
 
 class TwoFASetupOut(BaseModel):

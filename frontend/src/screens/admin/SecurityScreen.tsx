@@ -22,6 +22,7 @@ export function SecurityScreen() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [repeat, setRepeat] = useState("");
+  const [pwdCode, setPwdCode] = useState("");
   const twofa = useAction();
   const pwd = useAction();
 
@@ -69,10 +70,11 @@ export function SecurityScreen() {
   const changePassword = () =>
     pwd.run(async () => {
       if (next !== repeat) throw new Error("Parolele noi nu coincid");
-      await api("/auth/password", { method: "POST", body: { current_password: current, new_password: next } });
+      await api("/auth/password", { method: "POST", body: { current_password: current, new_password: next, code: pwdCode || null } });
       setCurrent("");
       setNext("");
       setRepeat("");
+      setPwdCode("");
       return "Parola a fost schimbată.";
     });
 
@@ -162,6 +164,12 @@ export function SecurityScreen() {
           <label htmlFor="pw-rep">Repetați parola nouă</label>
           <input id="pw-rep" type="password" autoComplete="new-password" value={repeat} onChange={(e) => setRepeat(e.target.value)} />
         </div>
+        {status?.enabled && (
+          <div className="field">
+            <label htmlFor="pw-code">Cod 2FA</label>
+            <input id="pw-code" value={pwdCode} onChange={(e) => setPwdCode(e.target.value)} />
+          </div>
+        )}
         <div className="bar">
           <button className="b primary" onClick={changePassword} disabled={pwd.busy || !current || !next}>
             Schimbă parola

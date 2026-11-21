@@ -136,3 +136,13 @@ def test_rls_enabled_on_organization_tables(connection):
         )
     }
     assert {"entry_lines", "documents", "audit_log", "tasks", "accounts", "grants"} <= names
+
+
+def test_password_change_needs_second_factor_when_enabled(client, db):
+    u = make_user(db, "p2@x.md")
+    secret, _ = _enable_2fa(client, u)
+    h = auth_headers(u)
+    body = {"current_password": "parola-test-1", "new_password": "noua-parola-1"}
+    assert client.post("/auth/password", json=body, headers=h).status_code == 400
+    code = totp._code(secret, totp.current_step() + 1)
+    assert client.post("/auth/password", json={**body, "code": code}, headers=h).status_code == 204

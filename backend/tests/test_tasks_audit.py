@@ -134,12 +134,14 @@ def test_audit_view_scope_and_roles(client, db):
     db.flush()
     ha = auth_headers(a)
     items = client.get(f"/organizations/{org_a.id}/audit", headers=ha).json()["items"]
-    assert {(i["entity"], i["user_email"]) for i in items} == {("documents", "au@x.md"), ("users", "au@x.md")}
+    assert {(i["entity"], i["user_email"]) for i in items} == {("documents", "au@x.md")}  # evenimentele de cont (fără organizație) nu ies în afara contului
     assert [i["entity"] for i in client.get(f"/organizations/{org_a.id}/audit?entity=documents", headers=ha).json()["items"]] == ["documents"]
     assert "documents" in client.get(f"/organizations/{org_a.id}/audit/entities", headers=ha).json()
     assert client.get(f"/organizations/{org_a.id}/audit", headers=auth_headers(b)).status_code == 404
     acc = make_user(db, "acc@x.md")
     _add_member(db, org_a, acc, UserRole.accountant)
     assert client.get(f"/organizations/{org_a.id}/audit", headers=auth_headers(acc)).status_code == 403
+    write_audit(db, action="update", entity="documents", organization_id=org_a.id, user_id=a.id)
+    db.flush()
     paged = client.get(f"/organizations/{org_a.id}/audit?limit=1", headers=ha).json()
     assert paged["has_more"] and len(paged["items"]) == 1

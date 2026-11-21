@@ -5,12 +5,12 @@ from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit.models import AuditLog
 from app.auth.deps import OrgContext, get_org_context
-from app.auth.models import OrganizationMember, User
+from app.auth.models import User
 from app.core.db import get_db
 from app.core.enums import UserRole
 
@@ -52,16 +52,10 @@ def list_audit(
     db: Session = Depends(get_db),
 ) -> AuditPage:
     ctx.require(AUDIT_ROLES)
-    member_ids = select(OrganizationMember.user_id).where(OrganizationMember.organization_id == ctx.organization_id)
-    # înregistrările organizației + evenimentele de cont (autentificare, parolă, 2FA) ale membrilor ei
-    scope = or_(
-        AuditLog.organization_id == ctx.organization_id,
-        and_(AuditLog.organization_id.is_(None), AuditLog.entity == "users", AuditLog.user_id.in_(member_ids)),
-    )
     stmt = (
         select(AuditLog, User.email)
         .outerjoin(User, User.id == AuditLog.user_id)
-        .where(scope, AuditLog.entity.not_in(PRIVATE_ENTITIES))
+        .where(AuditLog.organization_id == ctx.organization_id, AuditLog.entity.not_in(PRIVATE_ENTITIES))
     )
     if entity:
         stmt = stmt.where(AuditLog.entity == entity)

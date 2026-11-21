@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
 export function LoginPage() {
@@ -33,6 +34,8 @@ export function LoginPage() {
       navigate(target, { replace: true });
     } catch (err) {
       setError((err as Error).message);
+      // provocarea a expirat (sau a fost refuzată de server): reluăm de la parolă
+      if (challenge && err instanceof ApiError && err.status === 401 && /expirat/.test(err.message)) setChallenge(null);
     } finally {
       setBusy(false);
     }
@@ -93,6 +96,11 @@ export function LoginPage() {
           </>
         )}
         <div className="bar">
+          {challenge && (
+            <button className="b" type="button" onClick={() => { setChallenge(null); setCode(""); setError(null); }}>
+              ← Înapoi
+            </button>
+          )}
           <button className="b primary" type="submit" disabled={busy}>
             {busy ? "Se verifică…" : "Intră"}
           </button>

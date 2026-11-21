@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.audit.service import write_audit
 from app.auth.models import User, UserBackupCode
 from app.core import totp
 from app.core.config import get_settings
@@ -84,4 +85,5 @@ def verify_second_factor(db: Session, user: User, code: str) -> bool:
     if user.totp_failures >= MAX_FAILURES:
         user.totp_locked_until = now + timedelta(minutes=LOCK_MINUTES)
         user.totp_failures = 0
+        write_audit(db, action="lockout", entity="users", entity_id=user.id, user_id=user.id, new_values={"field": "2fa"})
     return False
