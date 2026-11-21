@@ -68,7 +68,7 @@ export const SECTIONS: Section[] = [
     icon: "Dt",
     title: "Operațiuni",
     groups: {
-      Servicii: ["Închiderea lunii", "Operațiune manuală", "Ajustarea perioadei"],
+      Servicii: ["Închiderea lunii", "Operațiune manuală", "Ajustarea perioadei", "Asistent AI"],
       Rapoarte: ["Verificarea contabilității"],
     },
   },
