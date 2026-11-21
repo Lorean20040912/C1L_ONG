@@ -21,7 +21,12 @@ export type TabKind =
   | "periods"
   | "accounts"
   | "trial-balance"
-  | "manual";
+  | "manual"
+  | "persons"
+  | "contracts"
+  | "payroll"
+  | "individual-payments"
+  | "ipc21";
 
 export interface Tab {
   id: string;
@@ -70,6 +75,16 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Planul de conturi": "accounts",
   "Balanța de verificare (OSV)": "trial-balance",
   "Operațiune manuală": "manual",
+  "Persoane fizice": "persons",
+  Angajare: "contracts",
+  "Contracte civile": "contracts",
+  "Cereri de scutire": "contracts",
+  "Calcul salariu": "payroll",
+  "Stat de plată": "payroll",
+  "Fișa de salariu": "payroll",
+  "Plată către persoană fizică": "individual-payments",
+  "Plăți către persoane fizice": "individual-payments",
+  IPC21: "ipc21",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];

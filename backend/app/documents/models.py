@@ -124,8 +124,8 @@ class PaymentOrderLine(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
     payment_order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("payment_orders.id", ondelete="CASCADE"))
-    person_id: Mapped[uuid.UUID | None] = mapped_column(UUID)  # FK: persons (modulul payroll)
-    payroll_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID)  # FK: payroll_entries (modulul payroll)
+    person_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("persons.id"))
+    payroll_entry_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("payroll_entries.id"))
     grant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("grants.id"))
     amount: Mapped[Decimal] = mapped_column(Numeric(15, 2))
 

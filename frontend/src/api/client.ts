@@ -95,3 +95,25 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+/** Descarcă un fișier generat de API (ex. XML-ul IPC21), cu jetonul de acces. */
+export async function apiDownload(path: string, fileName: string): Promise<void> {
+  const send = () => {
+    const token = read(ACCESS);
+    return fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  };
+  let res = await send();
+  if (res.status === 401) {
+    refreshing ??= refreshTokens().finally(() => (refreshing = null));
+    if (await refreshing) res = await send();
+  }
+  if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a); // Firefox descarcă doar din linkuri aflate în pagină
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

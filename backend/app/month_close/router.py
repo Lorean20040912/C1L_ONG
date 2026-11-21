@@ -37,6 +37,7 @@ class StepOut(BaseModel):
     entries: int | None = None
     total: Decimal | None = None
     issues: list[str] = []
+    document_id: uuid.UUID | None = None  # documentul pasului (ex. salariile lunii)
 
 
 class MonthCloseOut(BaseModel):
@@ -259,7 +260,7 @@ def update_fixed_asset(
 
 # ───────────── ceilalți pași (venituri, verificări) ─────────────
 
-GENERIC_STEPS = ("special_purpose_income", "checks")
+GENERIC_STEPS = ("payroll", "special_purpose_income", "checks")
 
 
 class StepRowOut(BaseModel):

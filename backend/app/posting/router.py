@@ -153,8 +153,12 @@ def preview_out(db: Session, generated: list[GeneratedLine]) -> list[PreviewLine
     ]
 
 
-# documentele care își generează singure operațiunile au rutele lor (/invoices, /payment-orders)
-DEDICATED_ROUTES = {DocumentType.invoice: "invoices", DocumentType.payment_order: "payment-orders"}
+# documentele care își generează singure operațiunile au rutele lor (/invoices, /payment-orders...)
+DEDICATED_ROUTES = {
+    DocumentType.invoice: "invoices",
+    DocumentType.payment_order: "payment-orders",
+    DocumentType.individual_payment: "individual-payments",
+}
 
 
 def _document(db: Session, ctx: OrgContext, document_id: uuid.UUID) -> Document:

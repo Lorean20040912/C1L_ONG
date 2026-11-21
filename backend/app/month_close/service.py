@@ -2,8 +2,9 @@
 
 Fiecare lună are un rând `month_close_runs` și un document-registrator; pasul
 executat înregistrează pe acest document, deci Dt/Kt arată exact ce a făcut
-închiderea. Deocamdată e implementat pasul amortizării; ceilalți pași din ToR
-(salarii, repartizare pe granturi, diferențe de curs...) apar ca „în lucru”.
+închiderea. Implementate: amortizarea, calculul salariului (app/payroll/calc.py,
+cu rezultatele înghețate în payroll_entries), veniturile, verificările; ceilalți
+pași din ToR (repartizare pe granturi, diferențe de curs...) apar ca „în lucru”.
 """
 
 import uuid
@@ -16,13 +17,15 @@ from app.core.enums import DocumentType
 from app.documents.models import Document
 from app.month_close.depreciation import DepreciationPlan, month_bounds, plan
 from app.month_close.models import MonthCloseRun
-from app.month_close.steps import StepResult, checks, income_plan
+from app.month_close.steps import StepResult, StepRow, checks, income_plan
+from app.payroll import calc as payroll_calc
+from app.payroll.service import clear_entries, store_entries
 from app.posting.engine import PostingError, post_document, unpost_document
 
 # pașii din ToR F2b.4, în ordine; `implemented` = are deja calcul
 STEPS = [
     ("depreciation", "Calculul amortizării", True),
-    ("payroll", "Calculul salariului", False),
+    ("payroll", "Calculul salariului", True),
     ("grant_allocation", "Repartizarea cheltuielilor pe granturi", False),
     ("fx_difference", "Diferențe de curs valutar", False),
     ("special_purpose_income", "Recunoașterea veniturilor din mijloace cu destinație specială", True),
@@ -126,7 +129,7 @@ def revert_depreciation(
 
 # ───────────── ceilalți pași: fiecare pas care înregistrează are documentul lui ─────────────
 
-STEP_DOCUMENT_SUFFIX = {"special_purpose_income": "VEN"}
+STEP_DOCUMENT_SUFFIX = {"special_purpose_income": "VEN", "payroll": "SAL"}
 
 
 def _step(run: MonthCloseRun | None, step: str) -> dict:
@@ -150,7 +153,27 @@ def _step_document(db: Session, run: MonthCloseRun, step: str, user_id: uuid.UUI
     return doc
 
 
+def _payroll(db: Session, organization_id: uuid.UUID, year: int, month: int) -> tuple[StepResult, object]:
+    """Calculul salariului ca rezultat de pas: un rând pe contract, cu brutul și reținerile."""
+    plan = payroll_calc.plan(db, organization_id, year, month)
+    result = StepResult(errors=list(plan.errors), lines=list(plan.lines))
+    for c in plan.calcs:
+        grants = ", ".join(f"{p.grant.code} {p.share}%" for p in c.parts) or "fără finanțare"
+        result.rows.append(
+            StepRow(
+                label=f"{c.person.full_name} — {c.income_code} ({c.contract.number or c.contract.type.value})",
+                amount=c.gross,
+                debit_account=None,
+                credit_account="531",
+                note=f"CNAS {c.cnas}, CNAM {c.cnam}, impozit {c.income_tax}, net {c.net}; {grants}",
+            )
+        )
+    return result, plan
+
+
 def preview_step(db: Session, organization_id: uuid.UUID, year: int, month: int, step: str) -> StepResult:
+    if step == "payroll":
+        return _payroll(db, organization_id, year, month)[0]
     if step == "checks":
         run = get_run(db, organization_id, year, month)
         own = {run.document_id} if run and run.document_id else set()
@@ -166,7 +189,11 @@ def run_step(
     db: Session, organization_id: uuid.UUID, year: int, month: int, step: str, user_id: uuid.UUID | None
 ) -> StepResult:
     run = _ensure_run(db, organization_id, year, month, user_id)
-    result = preview_step(db, organization_id, year, month, step)
+    payroll_plan = None
+    if step == "payroll":
+        result, payroll_plan = _payroll(db, organization_id, year, month)
+    else:
+        result = preview_step(db, organization_id, year, month, step)
     values: dict = {"status": "done", "entries": len(result.lines), "total": str(result.total)}
     if step == "checks":
         # verificările nu înregistrează; cu probleme pasul rămâne „de corectat”
@@ -183,6 +210,8 @@ def run_step(
             )  # fmt: skip
         elif doc.is_posted:
             unpost_document(db, organization_id=organization_id, document_id=doc.id, user_id=user_id)
+        if payroll_plan is not None:
+            store_entries(db, organization_id, payroll_plan, user_id)
     run.run_by = user_id
     run.run_at = datetime.now()
     _set_step(run, step, **values)
@@ -197,6 +226,8 @@ def revert_step(
     saved = _step(run, step)
     if saved.get("status") not in ("done", "error"):
         raise PostingError("Pasul nu a fost executat")
+    if step == "payroll":
+        clear_entries(db, organization_id, year, month)
     if saved.get("document_id"):
         doc = db.get(Document, uuid.UUID(saved["document_id"]))
         if doc.is_posted:

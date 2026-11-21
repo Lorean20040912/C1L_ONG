@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # cheia Fernet pentru IDNP (app/core/crypto.py); goală = derivată din jwt_secret
+    personal_data_key: str | None = None
+
     # utilizatorul demonstrativ creat de `python -m app.seed` (doar pentru dezvoltare)
     demo_email: str | None = None
     demo_password: str | None = None

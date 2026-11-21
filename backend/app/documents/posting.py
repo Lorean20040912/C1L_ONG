@@ -236,11 +236,11 @@ def payment_operations(
 ) -> tuple[str, list[OperationInput]]:
     if doc.total_amount is None or doc.total_amount <= 0:
         raise PostingError("Ordinul de plată nu are sumă")
-    if order.kind == "grouped_tax":
-        raise PostingError("Plata cumulată a impozitelor vine odată cu modulul salarii")
     bank = db.get(BankAccount, order.bank_account_id) if order.bank_account_id else None
     if bank is None or bank.organization_id != organization_id:
         raise PostingError("Alegeți contul bancar al organizației")
+    if order.kind == "grouped_tax":
+        return "payment_order", grouped_tax_operations(doc, order, bank)
     amount, currency_amount = _mdl(doc.total_amount, doc.currency, order.exchange_rate)
     counterparty = doc.counterparty_id
     if counterparty is None and order.invoice_id:
@@ -276,6 +276,36 @@ def payment_operations(
             "Încasarea fără grant nu are încă regulă; indicați grantul (cont bancar dedicat sau rândul plății)"
         )
     return "grant_income", [OperationInput(operation="tranche_received", debit_account_id=bank.account_id, **common)]
+
+
+def grouped_tax_operations(doc: Document, order: PaymentOrder, bank: BankAccount) -> list[OperationInput]:
+    """Plata cumulată (docs/09 §3): un singur ordin, dar înregistrarea stinge datoria
+    fiecărei persoane pe fiecare grant (un rând Dt 533/534/531 — Kt 242 pe rândul plății)."""
+    if order.tax_kind not in ("income_tax", "cnas", "cnam", "net_salary"):
+        raise PostingError("Plata cumulată: tipul obligației lipsește (income_tax / cnas / cnam / net_salary)")
+    if not order.lines:
+        raise PostingError("Plata cumulată nu are rânduri pe persoane")
+    if doc.currency and doc.currency != BASE_CURRENCY:
+        raise PostingError("Plata cumulată se face în MDL")
+    total = sum((ln.amount for ln in order.lines), Decimal(0))
+    if total != doc.total_amount:
+        raise PostingError(f"Suma ordinului ({doc.total_amount}) ≠ suma rândurilor pe persoane ({total})")
+    return [
+        OperationInput(
+            operation="tax_payment",
+            amount=ln.amount,
+            attributes={"tax_kind": order.tax_kind},
+            grant_id=ln.grant_id,
+            credit_account_id=bank.account_id,
+            description=order.purpose,
+            analytics=(
+                [AnalyticsInput(side="D", subconto_type=SubcontoType.person, ref_id=ln.person_id)]
+                if ln.person_id
+                else []
+            ),
+        )
+        for ln in order.lines
+    ]
 
 
 def preview_payment(db: Session, organization_id: uuid.UUID, document_id: uuid.UUID) -> list[GeneratedLine]:

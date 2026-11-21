@@ -20,6 +20,11 @@ import { MonthCloseScreen } from "../screens/MonthCloseScreen";
 import { PaymentForm } from "../screens/PaymentForm";
 import { PaymentList } from "../screens/PaymentList";
 import { PostingView } from "../screens/PostingView";
+import { ContractsScreen } from "../screens/payroll/ContractsScreen";
+import { IndividualPayments } from "../screens/payroll/IndividualPayments";
+import { Ipc21Screen } from "../screens/payroll/Ipc21Screen";
+import { PayrollScreen } from "../screens/payroll/PayrollScreen";
+import { PersonsScreen } from "../screens/payroll/PersonsScreen";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { SECTIONS } from "./sections";
@@ -233,6 +238,16 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <TrialBalance />;
     case "manual":
       return <ManualOperation tabId={tab.id} />;
+    case "persons":
+      return <PersonsScreen />;
+    case "contracts":
+      return <ContractsScreen />;
+    case "payroll":
+      return <PayrollScreen />;
+    case "individual-payments":
+      return <IndividualPayments />;
+    case "ipc21":
+      return <Ipc21Screen />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:

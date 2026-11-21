@@ -60,6 +60,8 @@ class PaymentOut(BaseModel):
     beneficiary_idno: str | None
     invoice_document_id: uuid.UUID | None
     bank_status: str | None
+    kind: str | None = None
+    tax_kind: str | None = None
     is_posted: bool | None
     version: int | None
     lines: list[PaymentLineIn]
@@ -84,6 +86,8 @@ def _out(db: Session, doc: Document, order: PaymentOrder) -> PaymentOut:
         beneficiary_idno=order.beneficiary_idno,
         invoice_document_id=invoice_doc,
         bank_status=order.bank_status,
+        kind=order.kind,
+        tax_kind=order.tax_kind,
         is_posted=doc.is_posted,
         version=doc.version,
         lines=[PaymentLineIn(grant_id=ln.grant_id, amount=ln.amount) for ln in order.lines],
@@ -208,6 +212,9 @@ def update_payment(
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Ordinul este înregistrat; anulați înregistrarea ca să-l modificați"
         )
+    if order.kind == "grouped_tax":
+        # rândurile pe persoane vin din calculul salariului; se refac prin ștergere și creare din nou
+        raise HTTPException(status.HTTP_409_CONFLICT, "Plata cumulată se modifică din „Calculul salariului”")
     _apply(db, ctx, doc, order, body)
     doc.version = (doc.version or 1) + 1
     db.flush()
