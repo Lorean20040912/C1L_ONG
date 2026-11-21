@@ -222,9 +222,11 @@ def test_calendar_fara_rapoarte_ong_pentru_srl(client, db):
     org = make_org(db, user, "SRL Beta")
     org.entity_type = EntityType.srl
     db.flush()
-    codes = {i["code"] for i in client.get(f"/organizations/{org.id}/reports/calendar", params={"on": "2027-01-20"},
-                                           headers=auth_headers(user)).json()}  # fmt: skip
-    assert codes == {"IPC21"}
+    items = client.get(f"/organizations/{org.id}/reports/calendar", params={"on": "2027-01-20"},
+                       headers=auth_headers(user)).json()  # fmt: skip
+    assert {i["code"] for i in items} == {"IPC21"}
+    # o bază nouă fără istoric: fără termene dinaintea creării organizației
+    assert min(i["period_to"] for i in items) >= org.created_at.date().isoformat()
 
 
 def test_izolarea_pe_organizatie(client, db, ong):

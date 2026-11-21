@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import User
 from app.catalogs.models import Account
-from app.posting.models import AccountTurnover
+from app.posting.models import AccountTurnover, EntryLine
 from app.regulated import sources as src
 from app.regulated.formulas import FormulaError, evaluate, quantize, references
 from app.regulated.models import ReportForm, ReportingCalendar, ReportStatus, TaxReport
@@ -395,14 +395,14 @@ STATUS_LABELS = {
 }
 
 
-def _periods(periodicity: str, today: date, back_days: int = 400) -> list[date]:
-    """Începuturile perioadelor încheiate în ultimele ~13 luni (și cea curentă, dacă s-a încheiat)."""
+def _periods(periodicity: str, today: date, since: date, back_days: int = 400) -> list[date]:
+    """Începuturile perioadelor încheiate în ultimele ~13 luni, dar nu înainte de `since`."""
     starts = []
     d = date(today.year - 2, 1, 1)
     step = {"month": 1, "quarter": 3, "year": 12}[periodicity]
     while d <= today:
         end = period_bounds(periodicity, d)
-        if end < today and end >= today - timedelta(days=back_days):
+        if today > end >= max(today - timedelta(days=back_days), since):
             starts.append(d)
         month = d.month - 1 + step
         d = date(d.year + month // 12, month % 12 + 1, 1)
@@ -410,14 +410,18 @@ def _periods(periodicity: str, today: date, back_days: int = 400) -> list[date]:
 
 
 def sync_calendar(db: Session, org: Organization, today: date) -> None:
-    """Adaugă în calendar termenele perioadelor încheiate (o dată pe perioadă)."""
+    """Adaugă în calendar termenele perioadelor încheiate (o dată pe perioadă), de la
+    începutul activității: crearea organizației sau prima înregistrare (istoricul importat)."""
+    first_entry = db.scalar(select(func.min(EntryLine.entry_date)).where(EntryLine.organization_id == org.id))
+    created = org.created_at.date() if org.created_at else today
+    since = min(d for d in (created, first_entry, today) if d is not None)
     codes = db.scalars(select(ReportForm.code).distinct()).all()
     for code in codes:
         latest = form_for(db, code, today)
         applies = latest.structure.get("applies_to")
         if applies and org.entity_type.value not in applies:
             continue
-        for start in _periods(latest.periodicity, today):
+        for start in _periods(latest.periodicity, today, since):
             form = form_for(db, code, start)
             end = period_bounds(form.periodicity, start)
             db.execute(

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, download } from "../../api/client";
 import {
   DESIGNATION_LABELS,
@@ -247,8 +247,10 @@ export function RegulatedReport({ code, periodFrom }: { code: RegulatedCode; per
 }
 
 function Drilldown({ drill, onClose }: { drill: CellDrilldown; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }), [drill]);
   return (
-    <div className="card" style={{ marginTop: 12 }}>
+    <div className="card" style={{ marginTop: 12 }} ref={ref}>
       <div className="bar">
         <b>
           Descifrarea rândului {drill.code} — {drill.label}
