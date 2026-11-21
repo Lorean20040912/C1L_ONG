@@ -191,9 +191,13 @@ def post_document(
     document_id: uuid.UUID,
     lines: list[LineInput],
     user_id: uuid.UUID | None,
+    rule_refs: list[str] | None = None,
 ) -> list[EntryLine]:
     """Înregistrează documentul. Un document deja înregistrat se reînregistrează
-    (înregistrările vechi se șterg întâi, ca la „Провести” repetat în 1C)."""
+    (înregistrările vechi se șterg întâi, ca la „Провести” repetat în 1C).
+
+    `rule_refs` — regulile din posting_rules care au generat rândurile (id și
+    sursa), păstrate în audit."""
     doc = _lock_document(db, organization_id, document_id)
     if doc.deletion_mark:
         raise PostingError("Documentul este marcat pentru ștergere")
@@ -277,7 +281,7 @@ def post_document(
         entity_id=doc.id,
         organization_id=organization_id,
         user_id=user_id,
-        new_values={"lines": len(created), "total": str(total_debit)},
+        new_values={"lines": len(created), "total": str(total_debit), "rules": rule_refs},
     )
     db.flush()
     return created
