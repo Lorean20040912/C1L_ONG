@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # cheia de criptare a datelor sensibile (IBAN-urile conturilor bancare); orice șir lung și aleator
     encryption_key: str = "schimba-cheia-de-criptare-in-env"
 
+    # asistentul AI (Claude API); fără cheie, chatul răspunde cu un mesaj clar că nu e configurat
+    anthropic_api_key: str | None = None
+    ai_model: str = "claude-sonnet-5-5"
+
     # utilizatorul demonstrativ creat de `python -m app.seed` (doar pentru dezvoltare)
     demo_email: str | None = None
     demo_password: str | None = None

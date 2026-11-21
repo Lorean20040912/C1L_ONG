@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.assistant.router import router as assistant_router
 from app.auth.members_router import router as members_router
 from app.auth.router import router as auth_router
 from app.bank.router import router as bank_router
@@ -62,6 +63,7 @@ app.include_router(account_reports_router)
 app.include_router(regulated_router)
 app.include_router(regulated_settings_router)
 app.include_router(bank_router)
+app.include_router(assistant_router)
 
 
 @app.get("/health", tags=["sistem"])

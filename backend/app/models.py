@@ -1,5 +1,6 @@
 """Importă toate modelele, ca SQLAlchemy și Alembic să vadă întreaga schemă."""
 
+from app.assistant.models import AiConversation, AiMessage
 from app.audit.models import AuditLog
 from app.bank.models import BankAccount, BankFormat, BankImport, BankTransaction, ExchangeRate, PaymentBatch
 from app.auth.models import OrganizationMember, User
@@ -32,6 +33,8 @@ from app.taxes.models import TaxRate
 from app.workspaces.models import Organization, Workspace
 
 __all__ = [
+    "AiConversation",
+    "AiMessage",
     "Account",
     "AccountAnalytics",
     "AccountingPeriod",
