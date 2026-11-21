@@ -14,6 +14,9 @@ from app.documents.invoices_router import router as invoices_router
 from app.documents.payments_router import router as payments_router
 from app.documents.router import router as documents_router
 from app.grants.admin_router import router as grants_admin_router
+from app.grants.advanced_router import router as grants_advanced_router
+from app.grants.allocation_router import router as allocation_router
+from app.grants.distribution import router as distribution_router
 from app.grants.router import router as grants_router
 from app.individual_payments.router import router as individual_payments_router
 from app.month_close.router import router as month_close_router
@@ -48,6 +51,9 @@ app.include_router(rules_router)
 app.include_router(grants_router)
 app.include_router(month_close_router)
 app.include_router(grants_admin_router)
+app.include_router(grants_advanced_router)
+app.include_router(allocation_router)
+app.include_router(distribution_router)
 app.include_router(accounting_admin_router)
 app.include_router(members_router)
 app.include_router(reports_router)

@@ -18,7 +18,7 @@ from app.auth.deps import POSTING_ROLES, OrgContext, get_org_context
 from app.catalogs.models import Account
 from app.core.db import get_db
 from app.documents.models import InvoiceLine
-from app.grants.models import BudgetLine, CostItem, Grant
+from app.grants.models import BudgetLine, BudgetVersion, CostItem, Grant
 from app.posting.models import EntryLine
 
 router = APIRouter(prefix="/organizations/{organization_id}", tags=["granturi"])
@@ -99,6 +99,7 @@ class BudgetLineDetail(BaseModel):
     cofinancing_amount: Decimal | None
     cost_item_id: uuid.UUID | None
     parent_id: uuid.UUID | None
+    budget_version_id: uuid.UUID | None = None
     in_use: bool = False
 
     model_config = {"from_attributes": True}
@@ -141,6 +142,20 @@ def _check_refs(db: Session, ctx: OrgContext, *, account_id=None, cost_item_id=N
         is None
     ):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Articolul de cheltuieli nu aparține organizației")
+
+
+def current_version_id(db: Session, grant_id: uuid.UUID) -> uuid.UUID | None:
+    """Versiunea în vigoare a bugetului (None = grantul nu are încă versiuni, liniile sunt „libere”)."""
+    return db.scalar(
+        select(BudgetVersion.id).where(BudgetVersion.grant_id == grant_id, BudgetVersion.is_current.is_(True))
+    )
+
+
+def _only_current(line: BudgetLine, db: Session) -> None:
+    if line.budget_version_id != current_version_id(db, line.grant_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Linia aparține unei versiuni vechi a bugetului; creați o versiune nouă"
+        )
 
 
 def _in_use(db: Session, line_id: uuid.UUID) -> bool:
@@ -203,10 +218,19 @@ def update_grant(
 
 @router.get("/grants/{grant_id}/budget-lines", response_model=list[BudgetLineDetail])
 def list_budget_lines(
-    grant_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+    grant_id: uuid.UUID,
+    version_id: uuid.UUID | None = None,
+    ctx: OrgContext = Depends(get_org_context),
+    db: Session = Depends(get_db),
 ) -> list[BudgetLineDetail]:
+    """Liniile versiunii cerute; fără `version_id` — cele ale versiunii în vigoare."""
     _grant(db, ctx, grant_id)
-    lines = db.scalars(select(BudgetLine).where(BudgetLine.grant_id == grant_id).order_by(BudgetLine.code)).all()
+    version = version_id or current_version_id(db, grant_id)
+    lines = db.scalars(
+        select(BudgetLine)
+        .where(BudgetLine.grant_id == grant_id, BudgetLine.budget_version_id.is_not_distinct_from(version))
+        .order_by(BudgetLine.code)
+    ).all()
     used = set(
         db.scalars(select(EntryLine.budget_line_id).where(EntryLine.budget_line_id.in_([ln.id for ln in lines])))
     )
@@ -229,9 +253,16 @@ def create_budget_line(
         is None
     ):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Linia-părinte nu aparține grantului")
-    if db.scalar(select(BudgetLine.id).where(BudgetLine.grant_id == grant_id, BudgetLine.code == body.code)):
+    version = current_version_id(db, grant_id)
+    if db.scalar(
+        select(BudgetLine.id).where(
+            BudgetLine.grant_id == grant_id,
+            BudgetLine.code == body.code,
+            BudgetLine.budget_version_id.is_not_distinct_from(version),
+        )
+    ):
         raise HTTPException(status.HTTP_409_CONFLICT, f"Linia {body.code} există deja în acest grant")
-    line = BudgetLine(grant_id=grant_id, **body.model_dump())
+    line = BudgetLine(grant_id=grant_id, budget_version_id=version, **body.model_dump())
     db.add(line)
     db.flush()
     write_audit(
@@ -248,12 +279,16 @@ def update_budget_line(
 ) -> BudgetLineDetail:
     ctx.require(POSTING_ROLES)
     line = _line(db, ctx, line_id)
+    _only_current(line, db)
     _check_refs(db, ctx, cost_item_id=body.cost_item_id)
     if body.parent_id == line.id:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Linia nu poate fi propriul părinte")
     if db.scalar(
         select(BudgetLine.id).where(
-            BudgetLine.grant_id == line.grant_id, BudgetLine.code == body.code, BudgetLine.id != line.id
+            BudgetLine.grant_id == line.grant_id,
+            BudgetLine.code == body.code,
+            BudgetLine.id != line.id,
+            BudgetLine.budget_version_id.is_not_distinct_from(line.budget_version_id),
         )
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, f"Linia {body.code} există deja în acest grant")
@@ -275,6 +310,7 @@ def delete_budget_line(
 ) -> None:
     ctx.require(POSTING_ROLES)
     line = _line(db, ctx, line_id)
+    _only_current(line, db)
     if _in_use(db, line.id):
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Linia e folosită în documente sau înregistrări și nu se poate șterge"

@@ -6,7 +6,7 @@ from app.auth.models import OrganizationMember, User
 from app.catalogs.models import Account, AccountAnalytics, Counterparty, Department
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
 from app.fixed_assets.models import FixedAsset
-from app.grants.models import BudgetLine, CostItem, Grant
+from app.grants.models import Allocation, BudgetLine, BudgetVersion, CostItem, Donor, Grant, GrantDonor, GrantTranche
 from app.month_close.models import MonthCloseRun
 from app.payroll.models import (
     Contract,
@@ -49,6 +49,11 @@ __all__ = [
     "ExemptionClaim",
     "FixedAsset",
     "Grant",
+    "GrantDonor",
+    "GrantTranche",
+    "Allocation",
+    "BudgetVersion",
+    "Donor",
     "IndividualPayment",
     "Invoice",
     "InvoiceLine",

@@ -12,7 +12,7 @@ from app.bank.models import BankAccount
 from app.catalogs.models import Account, Counterparty
 from app.core.db import get_db
 from app.core.enums import AccountKind
-from app.grants.models import BudgetLine, Grant
+from app.grants.models import BudgetLine, BudgetVersion, Grant
 
 router = APIRouter(prefix="/organizations/{organization_id}", tags=["cataloage"])
 
@@ -115,8 +115,15 @@ class GrantOut(BaseModel):
 @router.get("/grants", response_model=list[GrantOut])
 def list_grants(ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> list[GrantOut]:
     grants = db.scalars(select(Grant).where(Grant.organization_id == ctx.organization_id).order_by(Grant.code)).all()
+    # doar liniile versiunii în vigoare (și cele ale granturilor fără versiuni)
     lines = db.scalars(
-        select(BudgetLine).where(BudgetLine.grant_id.in_([g.id for g in grants])).order_by(BudgetLine.code)
+        select(BudgetLine)
+        .outerjoin(BudgetVersion, BudgetVersion.id == BudgetLine.budget_version_id)
+        .where(
+            BudgetLine.grant_id.in_([g.id for g in grants]),
+            (BudgetLine.budget_version_id.is_(None)) | (BudgetVersion.is_current.is_(True)),
+        )
+        .order_by(BudgetLine.code)
     ).all()
     by_grant: dict = {}
     for line in lines:
