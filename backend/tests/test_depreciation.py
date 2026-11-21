@@ -186,7 +186,7 @@ def test_api_inchiderea_lunii_si_fisele(client, db, ong):
 
     state = client.get(f"{base}/month-close/2026/4", headers=h).json()
     assert state["status"] == "draft" and state["steps"][0]["step"] == "depreciation"
-    assert [s["implemented"] for s in state["steps"]].count(True) == 6
+    assert [s["implemented"] for s in state["steps"]].count(True) == 7
 
     preview = client.post(f"{base}/month-close/2026/4/depreciation/preview", headers=h).json()
     assert preview["errors"] and preview["rows"][0]["error"]
@@ -290,7 +290,7 @@ def test_verificarile_lunii(client, db, ong):
     _manual_expense(db, org, acc, grant, user)
     assert not any("Contul 521" in e for e in client.post(f"{base}/preview", headers=h).json()["errors"])
     assert (
-        client.post(f"/organizations/{org.id}/month-close/2026/4/steps/account_closing/preview", headers=h).status_code == 404
+        client.post(f"/organizations/{org.id}/month-close/2026/4/steps/nu_exista/preview", headers=h).status_code == 404
     )
 
 
@@ -300,3 +300,33 @@ def test_verificarile_trec_pe_o_luna_curata(db, ong):
     user, org, _, _, bl, supplier = ong
     result = run_step(db, org.id, 2026, 6, "checks", user.id)
     assert result.errors == [] and result.rows[0].label == "Toate verificările au trecut"
+
+
+def test_inchiderea_conturilor_6_7_la_331(db, ong):
+    from app.month_close.service import preview_step, revert_step, run_step
+    from app.posting.models import EntryLine
+    from tests.conftest import make_accounts
+
+    user, org, acc, grant, bl, supplier = ong
+    assert run_step_error(db, org, user)  # fără 331 pasul se oprește cu mesaj clar
+    make_accounts(db, org, "331")
+    _manual_expense(db, org, acc, grant, user, amount="500")  # Dt 716 / Kt 521, fără venit
+    run_step(db, org.id, 2026, 4, "special_purpose_income", user.id)  # Dt 537 / Kt 616 = 500
+    result = preview_step(db, org.id, 2026, 4, "account_closing")
+    pairs = {(r.debit_account, r.credit_account, r.amount) for r in result.rows}
+    assert pairs == {("616", "331", Decimal(500)), ("331", "716", Decimal(500))}
+    run_step(db, org.id, 2026, 4, "account_closing", user.id)
+    # după închidere conturile 6/7 sunt pe zero, iar o nouă previzualizare dă același plan (pasul se exclude)
+    assert {(r.debit_account, r.credit_account) for r in preview_step(db, org.id, 2026, 4, "account_closing").rows} == {
+        ("616", "331"),
+        ("331", "716"),
+    }
+    step = next(s for s in get_run(db, org.id, 2026, 4).steps if s["step"] == "account_closing")
+    revert_step(db, org.id, 2026, 4, "account_closing", user.id)
+    assert codes(db, step["document_id"]) == []
+
+
+def run_step_error(db, org, user):
+    from app.month_close.service import preview_step
+
+    return any("331" in e for e in preview_step(db, org.id, 2026, 4, "account_closing").errors)

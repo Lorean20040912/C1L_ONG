@@ -4,12 +4,17 @@
   acoperite de venituri pe 616 (docs/11 §2.2: Dt 537 — Kt 616 în aceeași sumă).
   Documentele generează deja venitul; pasul completează doar diferența (ex.
   cheltuieli din operațiuni manuale) și semnalează venitul mai mare decât cheltuiala.
+- `account_closing`: conturile de venituri (6) și cheltuieli (7) cu sold de la 1 ianuarie la
+  sfârșitul lunii se închid la contul de rezultat 33x (ToR F2b.4): venit Dt 6xx — Kt 331,
+  cheltuială Dt 331 — Kt 7xx, pe grant. Contul se alege din politică (`settings.closing_account`),
+  altfel 331, altfel primul cont 33x al planului.
 - `checks`: totalurile = suma înregistrărilor, documentele neînregistrate ale lunii,
   conturile active cu sold creditor și pasive cu sold debitor. Nu înregistrează nimic.
 """
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import case, func, select
@@ -100,6 +105,93 @@ def income_plan(
         result.lines.append(generated)
         result.rows.append(
             StepRow(label=label, amount=gap, debit_account="537", credit_account="616", note=generated.rule.source_ref)
+        )
+    return result
+
+
+def closing_account(db: Session, organization_id: uuid.UUID, on_date) -> Account:
+    from app.posting.rules import policy_in_force
+
+    policy = policy_in_force(db, organization_id, on_date)
+    wanted = ((policy.settings or {}).get("closing_account") if policy else None) or "331"
+    base = select(Account).where(Account.organization_id == organization_id, Account.is_group.is_not(True))
+    account = db.scalar(base.where(Account.code == wanted))
+    if account is None:
+        account = db.scalar(base.where(Account.code.like("33%")).order_by(Account.code).limit(1))
+    if account is None:
+        raise PostingError(f"Contul de rezultat {wanted} (33x) lipsește din planul de conturi")
+    return account
+
+
+def closing_plan(
+    db: Session, organization_id: uuid.UUID, year: int, month: int, exclude_document: uuid.UUID | None
+) -> StepResult:
+    """Închiderea conturilor 6/7 (docs/11, ToR F2b.4): soldul anului până la sfârșitul lunii → 33x."""
+    _, end = month_bounds(year, month)
+    year_start = date(year, 1, 1)
+    result = StepResult()
+    try:
+        target = closing_account(db, organization_id, end)
+    except PostingError as exc:
+        result.errors.append(str(exc))
+        return result
+
+    def side(account_column, sign):
+        query = (
+            select(account_column.label("account_id"), EntryLine.grant_id, (sign * EntryLine.amount).label("amount"))
+            .where(
+                EntryLine.organization_id == organization_id,
+                EntryLine.entry_date.between(year_start, end),
+            )
+        )
+        return query.where(EntryLine.document_id != exclude_document) if exclude_document else query
+
+    union = side(EntryLine.debit_account_id, 1).union_all(side(EntryLine.credit_account_id, -1)).subquery()
+    rows = db.execute(
+        select(Account, union.c.grant_id, func.sum(union.c.amount))
+        .join(Account, Account.id == union.c.account_id)
+        .where(Account.organization_id == organization_id, Account.code.like("6%") | Account.code.like("7%"))
+        .group_by(Account.id, union.c.grant_id)
+        .order_by(Account.code)
+    ).all()
+    grants = {g.id: g for g in db.scalars(select(Grant).where(Grant.organization_id == organization_id))}
+    for account, grant_id, net in rows:
+        if not net:
+            continue
+        # sold creditor (venit) → Dt cont — Kt 33x; sold debitor (cheltuială) → Dt 33x — Kt cont
+        income = net < 0
+        amount = abs(net)
+        operation = "close_income" if income else "close_expense"
+        grant = grants.get(grant_id)
+        try:
+            generated = build_lines(
+                db,
+                organization_id=organization_id,
+                document_type="month_close.account_closing",
+                doc_date=end,
+                operations=[
+                    OperationInput(
+                        operation=operation,
+                        amount=amount,
+                        grant_id=grant_id,
+                        debit_account_id=account.id if income else target.id,
+                        credit_account_id=target.id if income else account.id,
+                        description=f"Închiderea contului {account.code}",
+                    )
+                ],
+            )[0]
+        except PostingError as exc:
+            result.errors.append(f"{account.code}: {exc}")
+            continue
+        result.lines.append(generated)
+        result.rows.append(
+            StepRow(
+                label=f"{account.code} {account.name}" + (f" — {grant.code}" if grant else ""),
+                amount=amount,
+                debit_account=account.code if income else target.code,
+                credit_account=target.code if income else account.code,
+                note=generated.rule.source_ref,
+            )
         )
     return result
 

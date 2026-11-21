@@ -19,7 +19,7 @@ from app.documents.models import Document
 from app.grants import allocation as grant_allocation
 from app.month_close.depreciation import DepreciationPlan, month_bounds, plan
 from app.month_close.models import MonthCloseRun
-from app.month_close.steps import StepResult, StepRow, checks, income_plan
+from app.month_close.steps import StepResult, StepRow, checks, closing_plan, income_plan
 from app.payroll import calc as payroll_calc
 from app.payroll.service import clear_entries, store_entries
 from app.posting.engine import PostingError, post_document, unpost_document
@@ -31,7 +31,7 @@ STEPS = [
     ("grant_allocation", "Repartizarea cheltuielilor pe granturi", True),
     ("fx_difference", "Diferențe de curs valutar", True),
     ("special_purpose_income", "Recunoașterea veniturilor din mijloace cu destinație specială", True),
-    ("account_closing", "Închiderea conturilor", False),
+    ("account_closing", "Închiderea conturilor", True),
     ("checks", "Verificări (Dt = Kt, solduri negative, documente neînregistrate)", True),
 ]
 
@@ -140,6 +140,7 @@ STEP_DOCUMENT_SUFFIX = {
     "payroll": "SAL",
     "grant_allocation": "REP",
     "fx_difference": "CV",
+    "account_closing": "INC",
 }
 
 
@@ -203,6 +204,9 @@ def preview_step(
     if step == "fx_difference":
         saved = _step(get_run(db, organization_id, year, month), step).get("document_id")
         return fx_plan(db, organization_id, year, month, uuid.UUID(saved) if saved else None)
+    if step == "account_closing":
+        saved = _step(get_run(db, organization_id, year, month), step).get("document_id")
+        return closing_plan(db, organization_id, year, month, uuid.UUID(saved) if saved else None)
     raise PostingError("Pasul nu este încă implementat")
 
 
