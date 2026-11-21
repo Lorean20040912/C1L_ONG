@@ -1,0 +1,362 @@
+/* Culorile și densitatea din docs/08-design-interfata.md (§4) și design/prototip.html */
+:root {
+  --side: #fbf3d5;
+  --side-hover: #f7e9b4;
+  --side-active: #f3de8a;
+  --top: #f7e7a6;
+  --btn: #f5d34b;
+  --btn-h: #ebc52e;
+  --border: #c8c8c8;
+  --line: #e4e4e4;
+  --link: #2b5da8;
+  --green: #3c8d40;
+  --red: #c0392b;
+  --sel: #fcefb4;
+  --text: #333;
+  --muted: #777;
+  --bg: #fff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font: 14px "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+a,
+.link {
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 400;
+  margin: 4px 0 10px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+h2 {
+  color: var(--green);
+  font-size: 17px;
+  margin: 14px 0 8px;
+}
+
+h3 {
+  color: var(--green);
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+
+/* ───── butoane ───── */
+.b {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 3px;
+}
+.b:hover {
+  background: #f6f6f6;
+}
+.b.primary {
+  background: var(--btn);
+  border-color: #d9b52a;
+  font-weight: 600;
+}
+.b.primary:hover {
+  background: var(--btn-h);
+}
+.b:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.bar .sp {
+  flex: 1;
+}
+
+/* ───── formulare ───── */
+.field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.field label {
+  color: #555;
+}
+.field input,
+.field select {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  width: 100%;
+  background: #fff;
+}
+.error {
+  background: #fdecea;
+  border: 1px solid #f5c6c0;
+  color: var(--red);
+  padding: 7px 10px;
+  border-radius: 3px;
+  margin-bottom: 10px;
+}
+.hint {
+  background: #eef4fb;
+  border: 1px solid #cfe0f3;
+  padding: 8px 10px;
+  border-radius: 3px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.muted {
+  color: var(--muted);
+}
+
+/* ───── tabel ───── */
+table.grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.grid th {
+  background: #f2f2f2;
+  text-align: left;
+  font-weight: 400;
+  color: #555;
+  border: 1px solid var(--line);
+  padding: 5px 8px;
+}
+.grid td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  height: 26px;
+}
+.grid tbody tr {
+  cursor: pointer;
+}
+.grid tbody tr:hover td {
+  background: #fafafa;
+}
+.grid tbody tr.sel td {
+  background: var(--sel);
+}
+
+/* ───── pagini simple (login, bazele mele) ───── */
+.page {
+  min-height: 100%;
+  background: var(--side);
+}
+.page-top {
+  height: 40px;
+  background: var(--top);
+  border-bottom: 1px solid #e2cf7c;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+}
+.logo {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+.logo b {
+  color: var(--red);
+}
+.page-top .sp {
+  flex: 1;
+}
+.panel {
+  background: #fff;
+  border: 1px solid #e8dba8;
+  border-radius: 4px;
+  padding: 18px 22px;
+  margin: 40px auto;
+  width: min(100% - 32px, 380px);
+}
+.panel.wide {
+  width: min(100% - 32px, 880px);
+}
+
+/* ───── AppShell ───── */
+.shell {
+  display: grid;
+  grid-template-rows: 40px 34px 1fr;
+  grid-template-columns: 220px 1fr;
+  height: 100vh;
+}
+.shell-top {
+  grid-column: 1 / -1;
+  background: var(--top);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  border-bottom: 1px solid #e2cf7c;
+}
+.shell-top select {
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: #fff;
+  max-width: 260px;
+}
+.shell-top .search {
+  margin-left: auto;
+}
+.shell-top .search input {
+  width: 280px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.shell-top .user {
+  color: #555;
+}
+.sections {
+  grid-row: 2 / 4;
+  background: var(--side);
+  border-right: 1px solid #e8dba8;
+  overflow: auto;
+  padding-top: 6px;
+  margin: 0;
+  list-style: none;
+}
+.sections button {
+  width: 100%;
+  padding: 8px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: none;
+  background: none;
+  text-align: left;
+  color: inherit;
+}
+.sections button:hover {
+  background: var(--side-hover);
+}
+.sections button.active {
+  background: var(--side-active);
+  font-weight: 600;
+}
+.sections .ico {
+  width: 18px;
+  text-align: center;
+  color: #6b5a1a;
+}
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border);
+  background: #f3f3f3;
+  overflow-x: auto;
+}
+.tab {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #e9e9e9;
+  white-space: nowrap;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.tab.active {
+  background: #fff;
+  border-bottom: 2px solid var(--green);
+  font-weight: 600;
+}
+.tab .x {
+  color: #888;
+  font-weight: 400;
+  border: none;
+  background: none;
+  padding: 0;
+}
+.tab .x:hover {
+  color: var(--red);
+}
+.main {
+  overflow: auto;
+  padding: 12px 18px 30px;
+}
+.navgroups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
+  gap: 20px;
+}
+.navgroups ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.navgroups li {
+  padding: 5px 0;
+}
+.cols {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 28px;
+}
+.card {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: 56px 1fr;
+  }
+  .sections .t {
+    display: none;
+  }
+  .shell-top .search input {
+    width: 120px;
+  }
+  .cols,
+  .navgroups {
+    grid-template-columns: 1fr;
+  }
+}
