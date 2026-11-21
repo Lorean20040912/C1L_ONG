@@ -37,7 +37,10 @@ export type TabKind =
   | "cost-items"
   | "reporting-data"
   | "features"
-  | "simple-journal";
+  | "simple-journal"
+  | "security"
+  | "audit"
+  | "tasks";
 
 export interface Tab {
   id: string;
@@ -107,6 +110,9 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Date pentru rapoarte": "reporting-data",
   Funcționalitate: "features",
   "Registru-jurnal (partidă simplă)": "simple-journal",
+  "Securitatea contului": "security",
+  "Jurnal de audit": "audit",
+  "Sarcini și termene": "tasks",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];

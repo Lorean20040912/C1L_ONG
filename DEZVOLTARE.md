@@ -56,4 +56,4 @@ Rămas — câte o sesiune pe domeniu, fiecare pornind de aici:
 | Bază nouă + profiluri | `features`, `organization_features`, `coa_templates`, expertul complet; partida simplă ÎI/GȚ | `13-tipuri-entitati-profiluri.md` |
 | e-Factura, storage, OCR/AI | adaptoare externe, `ai_actions` (propuneri Aplică / Respinge) | arhitectura §5, §7, §9 |
 | Import 1C | `onec_import_runs`, `onec_id_map`, solduri inițiale, reconcilierea balanței | ToR F7 |
-| Securitate | 2FA TOTP, schimbarea parolei, Row-Level Security | arhitectura §10 |
+| ~~Securitate~~ | gata: 2FA TOTP, parolă, RLS (`app/core/rls.py` — tabelă nouă cu `organization_id` → `enable_rls_sql` în migrare), audit vizibil, sarcini (`app/tasks/`) | arhitectura §10, §9c |
