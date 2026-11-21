@@ -4,6 +4,9 @@ import { api } from "../api/client";
 import { ROLE_LABELS, type OrganizationBrief, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { AccountsScreen } from "../screens/admin/AccountsScreen";
+import { BankImportScreen } from "../screens/bank/BankImportScreen";
+import { ExchangeRatesScreen } from "../screens/bank/ExchangeRatesScreen";
+import { PaymentExportScreen } from "../screens/bank/PaymentExportScreen";
 import { BankAccountsScreen } from "../screens/admin/BankAccountsScreen";
 import { GrantsScreen } from "../screens/admin/GrantsScreen";
 import { MembersScreen } from "../screens/admin/MembersScreen";
@@ -223,6 +226,12 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <RulesScreen />;
     case "bank-accounts":
       return <BankAccountsScreen />;
+    case "bank-import":
+      return <BankImportScreen />;
+    case "payment-export":
+      return <PaymentExportScreen />;
+    case "exchange-rates":
+      return <ExchangeRatesScreen />;
     case "members":
       return <MembersScreen />;
     case "periods":

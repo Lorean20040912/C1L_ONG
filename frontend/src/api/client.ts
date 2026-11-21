@@ -95,3 +95,24 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+/** Descarcă un fișier (cu jetonul de acces) și îl oferă browserului spre salvare. */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const send = () => {
+    const token = read(ACCESS);
+    return fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  };
+  let res = await send();
+  if (res.status === 401) {
+    refreshing ??= refreshTokens().finally(() => (refreshing = null));
+    if (await refreshing) res = await send();
+  }
+  if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+  const match = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") ?? "");
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = match?.[1] ?? fallbackName;
+  a.click();
+  URL.revokeObjectURL(url);
+}

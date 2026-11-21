@@ -17,6 +17,9 @@ export type TabKind =
   | "policy"
   | "rules"
   | "bank-accounts"
+  | "bank-import"
+  | "payment-export"
+  | "exchange-rates"
   | "members"
   | "periods"
   | "accounts"
@@ -65,6 +68,9 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Politica contabilă": "policy",
   "Reguli de înregistrare": "rules",
   "Conturi bancare": "bank-accounts",
+  "Import extras bancar": "bank-import",
+  "Export ordine de plată": "payment-export",
+  "Curs BNM": "exchange-rates",
   "Utilizatori și drepturi": "members",
   "Perioade închise": "periods",
   "Planul de conturi": "accounts",

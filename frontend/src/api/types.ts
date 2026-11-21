@@ -353,3 +353,59 @@ export interface Period {
   closed_at: string | null;
   closed_by_name: string | null;
 }
+
+// ───────── bancă ─────────
+
+export interface BankFormat {
+  id: string;
+  bank_name: string;
+  file_type: string;
+  direction: "import" | "export";
+  encoding: string;
+  layout: Record<string, unknown>;
+  is_standard: boolean;
+}
+
+export interface BankTransaction {
+  id: string;
+  tx_date: string;
+  direction: PaymentDirection;
+  amount: string;
+  currency: string | null;
+  doc_number: string | null;
+  counterparty_name: string | null;
+  counterparty_iban: string | null;
+  purpose: string | null;
+  match: string | null;
+  document_id: string | null;
+  is_posted: boolean;
+}
+
+export interface BankImport {
+  id: string;
+  file_name: string | null;
+  rows_total: number | null;
+  rows_created: number | null;
+  rows_skipped: number | null;
+  rows_failed: number | null;
+  errors: unknown[];
+  imported_at: string | null;
+  dry_run: boolean;
+  transactions: BankTransaction[];
+}
+
+export interface PaymentBatch {
+  id: string;
+  bank_account_id: string;
+  created_at: string | null;
+  file_name: string | null;
+  orders_count: number | null;
+  total_amount: string | null;
+}
+
+export interface ExchangeRate {
+  currency: string;
+  rate_date: string;
+  rate: string;
+  source: string | null;
+}
