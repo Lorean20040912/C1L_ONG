@@ -179,3 +179,85 @@ export interface EntryLine {
   budget_line_id: string | null;
   description: string | null;
 }
+
+// ───────────── buget, închiderea lunii, mijloace fixe ─────────────
+
+export interface BudgetLineExecution {
+  grant_id: string;
+  grant_code: string;
+  budget_line_id: string;
+  code: string;
+  name: string;
+  planned: string;
+  spent: string;
+  remaining: string;
+  over: string;
+}
+
+export interface BudgetWarning {
+  budget_line_id: string;
+  label: string;
+  planned: string;
+  spent: string;
+  over: string;
+  message: string;
+}
+
+export interface MonthCloseStep {
+  step: string;
+  title: string;
+  implemented: boolean;
+  status: "pending" | "done" | "reverted";
+  entries: number | null;
+  total: string | null;
+}
+
+export interface MonthClose {
+  year: number;
+  month: number;
+  status: string;
+  document_id: string | null;
+  steps: MonthCloseStep[];
+}
+
+export interface DepreciationRow {
+  fixed_asset_id: string;
+  inventory_no: string;
+  name: string;
+  initial_cost: string;
+  accumulated_before: string;
+  amount: string;
+  debit_account: string | null;
+  credit_account: string | null;
+  grant_id: string | null;
+  source_ref: string | null;
+  error: string | null;
+}
+
+export interface DepreciationPreview {
+  year: number;
+  month: number;
+  entry_date: string;
+  total: string;
+  rows: DepreciationRow[];
+  errors: string[];
+}
+
+export interface FixedAsset {
+  id: string;
+  inventory_no: string;
+  name: string;
+  initial_cost: string;
+  residual_value: string | null;
+  useful_life_months: number | null;
+  asset_group: string | null;
+  status: string | null;
+  commissioning_date: string | null;
+  depreciation_start: string | null;
+  grant_id: string | null;
+  budget_line_id: string | null;
+  expense_account_id: string | null;
+  document_id: string | null;
+  accumulated: string;
+  book_value: string;
+}

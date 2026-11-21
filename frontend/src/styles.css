@@ -547,3 +547,94 @@ input.num {
     grid-column: auto;
   }
 }
+
+/* ───── buget, închiderea lunii ───── */
+.meter {
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 6px;
+  flex: 1;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+.meter i.over {
+  background: var(--red);
+}
+.meter-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meter-cell .meter {
+  margin-top: 0;
+}
+.hint.warn {
+  background: #fdecea;
+  border-color: #f5c6c0;
+}
+.late {
+  color: var(--red);
+}
+.small {
+  font-size: 12px;
+  margin-top: 4px;
+}
+.grid tr.over-row td {
+  background: #fff4f2;
+}
+.grid tr.total-row td {
+  font-weight: 600;
+  background: #fafafa;
+}
+.grid input.short {
+  width: 64px;
+}
+td .pair {
+  display: inline-flex;
+  gap: 4px;
+}
+td .pair input {
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  width: 64px;
+}
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  max-width: 980px;
+}
+.steps li {
+  display: grid;
+  grid-template-columns: 28px 1fr 200px 330px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.steps .ic {
+  font-weight: 700;
+  text-align: center;
+}
+.steps .acts {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+@media (max-width: 900px) {
+  .steps li {
+    grid-template-columns: 28px 1fr;
+  }
+  .steps .acts {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}

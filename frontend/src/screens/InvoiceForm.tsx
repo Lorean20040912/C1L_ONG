@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import { LINE_KIND_LABELS, type Counterparty, type Invoice, type InvoiceLine, type LineKind } from "../api/types";
+import { LINE_KIND_LABELS, type BudgetWarning, type Counterparty, type Invoice, type InvoiceLine, type LineKind } from "../api/types";
 import { useCatalogs } from "../catalog/useCatalogs";
 import { notifyDocumentsChanged } from "../lib/events";
 import { day, money, parseAmount, today } from "../lib/format";
@@ -72,6 +72,7 @@ export function InvoiceForm({ tabId, documentId: initialId }: { tabId: string; d
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<BudgetWarning[]>([]);
 
   const base = `/organizations/${orgId}/invoices`;
 
@@ -188,10 +189,12 @@ export function InvoiceForm({ tabId, documentId: initialId }: { tabId: string; d
   const onPost = (close: boolean) =>
     run(async () => {
       const id = dirty || !documentId ? await save() : documentId;
-      await api(`${base}/${id}/post`, { method: "POST" });
+      const result = await api<{ warnings: BudgetWarning[] }>(`${base}/${id}/post`, { method: "POST" });
       fill(await api<Invoice>(`${base}/${id}`));
       notifyDocumentsChanged("invoices");
-      if (close) closeTab(`invoice:${id}`, { force: true });
+      setWarnings(result.warnings);
+      // cu depășire de buget fila rămâne deschisă, ca avertismentul să fie văzut
+      if (close && result.warnings.length === 0) closeTab(`invoice:${id}`, { force: true });
       else setInfo("Înregistrat.");
     });
 
@@ -200,6 +203,7 @@ export function InvoiceForm({ tabId, documentId: initialId }: { tabId: string; d
       await api(`${base}/${documentId}/unpost`, { method: "POST" });
       fill(await api<Invoice>(`${base}/${documentId}`));
       notifyDocumentsChanged("invoices");
+      setWarnings([]);
       setInfo("Înregistrarea a fost anulată; documentul se poate modifica.");
     });
 
@@ -266,6 +270,17 @@ export function InvoiceForm({ tabId, documentId: initialId }: { tabId: string; d
         </div>
       )}
       {info && <div className="hint">{info}</div>}
+      {warnings.length > 0 && (
+        <div className="hint warn" role="status">
+          <b>Depășire de buget:</b>
+          {warnings.map((w) => (
+            <div key={w.budget_line_id}>
+              • {w.label}: cheltuit {money(w.spent)} din {money(w.planned)}, peste buget {money(w.over)}
+            </div>
+          ))}
+          Suma peste buget nu e deductibilă (ONG17). Documentul a fost înregistrat.
+        </div>
+      )}
 
       <div className="form">
         <label htmlFor={`${tabId}-nr`}>Număr</label>
