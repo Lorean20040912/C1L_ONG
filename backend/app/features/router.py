@@ -2,6 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.audit.service import write_audit
@@ -113,7 +114,11 @@ def wizard_create(
         user_id=user.id,
         new_values={"name": ws.name, "idno": org.idno, "features": codes, "tax_regime": regime},
     )
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "O organizație cu acest IDNO există deja") from None
     return WizardResult(
         workspace=WorkspaceOut(
             id=ws.id,

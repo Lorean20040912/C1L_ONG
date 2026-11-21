@@ -211,3 +211,19 @@ def test_migrarea_porneste_functionalitati_pentru_bazele_existente(db):
     assert {f.code for f in db.scalars(select(Feature))} >= {"ngo_grants", "double_entry", "single_entry", "vat", "payroll"}
     assert {t.code for t in db.scalars(select(CoaTemplate))} == {"general", "ngo", "ii_single_entry"}
     assert db.scalar(select(OrganizationFeature.id).limit(1)) is None
+
+
+def test_baza_creata_fara_expert_primeste_functionalitati(client, db):
+    u = make_user(db, "a@exemplu.md")
+    body_ = {"name": "AO Z", "organization_name": "AO Z", "idno": "1012345678909", "entity_type": "ngo_association"}
+    r = client.post("/workspaces", json=body_, headers=auth_headers(u))
+    org_id = r.json()["organizations"][0]["id"]
+    p = client.get(f"/organizations/{org_id}/ui-profile", headers=auth_headers(u)).json()
+    assert {"ngo_grants", "double_entry"} <= set(p["enabled"])
+    assert "ngo" in p["visible_sections"]
+
+
+def test_grants_activitate_porneste_ngo_grants(client, db):
+    u = make_user(db, "a@exemplu.md")
+    r = client.post(WIZ + "/preview", json={"entity_type": "srl", "activities": ["grants"]}, headers=auth_headers(u))
+    assert "ngo_grants" in codes(r)

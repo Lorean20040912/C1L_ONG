@@ -87,7 +87,7 @@ FEATURES = [
     ("ngo_grants", "Granturi și activitate necomercială",
      {"sections": ["ngo"], "screens": ["Execuția bugetului", "ONG17", "5-CON", "Proiecte / granturi", "Linii de buget",
                                         "Articole de cheltuieli", "Date pentru rapoarte"]},
-     {"entity_types": NGO_TYPES}),
+     {"entity_types": NGO_TYPES, "activities": ["grants"]}),
     ("double_entry", "Partidă dublă",
      {"sections": ["ops"], "screens": ["Operațiune manuală", "Balanța de verificare (OSV)", "Fișa contului",
                                         "Analiza contului", "Planul de conturi", "Politica contabilă",
@@ -196,7 +196,8 @@ def upgrade() -> None:
             "UNION ALL SELECT o.id, 'ngo_grants', DATE '2015-01-01' FROM organizations o "
             "WHERE o.entity_type IN ('ngo_association', 'ngo_foundation', 'ngo_other') "
             "UNION ALL SELECT o.id, 'single_entry', DATE '2015-01-01' FROM organizations o "
-            "WHERE o.accounting_method = 'single_entry'"
+            "WHERE o.accounting_method = 'single_entry' "
+            "UNION ALL SELECT o.id, 'vat', DATE '2015-01-01' FROM organizations o WHERE o.vat_payer_from IS NOT NULL"
         )
     )
 

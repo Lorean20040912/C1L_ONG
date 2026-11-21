@@ -56,6 +56,12 @@ def _out(e: SimpleLedgerEntry) -> EntryOut:
     )
 
 
+def _require_single_entry(db: Session, ctx: OrgContext) -> None:
+    method = db.scalar(select(Organization.accounting_method).where(Organization.id == ctx.organization_id))
+    if method != AccountingMethod.single_entry:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Organizația ține partidă dublă, nu registru-jurnal")
+
+
 @router.get("", response_model=Journal)
 def journal(
     date_from: date | None = None,
@@ -84,9 +90,7 @@ def journal(
 @router.post("/entries", response_model=EntryOut, status_code=status.HTTP_201_CREATED)
 def add_entry(body: EntryIn, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> EntryOut:
     ctx.require(POSTING_ROLES)
-    method = db.scalar(select(Organization.accounting_method).where(Organization.id == ctx.organization_id))
-    if method != AccountingMethod.single_entry:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Organizația ține partidă dublă, nu registru-jurnal")
+    _require_single_entry(db, ctx)
     doc = db.scalar(
         select(Document.id).where(Document.id == body.document_id, Document.organization_id == ctx.organization_id)
     )
@@ -110,6 +114,7 @@ def add_entry(body: EntryIn, ctx: OrgContext = Depends(get_org_context), db: Ses
 @router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry(entry_id: int, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> None:
     ctx.require(POSTING_ROLES)
+    _require_single_entry(db, ctx)
     entry = db.scalar(
         select(SimpleLedgerEntry).where(
             SimpleLedgerEntry.id == entry_id, SimpleLedgerEntry.organization_id == ctx.organization_id

@@ -78,6 +78,16 @@ def active_features(db: Session, organization_id: uuid.UUID, on: date) -> list[F
     )
 
 
+def enable_defaults(db: Session, org, start: date) -> list[str]:
+    """Pornește funcționalitățile propuse pentru o organizație creată fără expert."""
+    a = Answers(org.entity_type, org.accounting_method, vat_payer=org.vat_payer_from is not None)
+    codes = [f.code for f in propose_features(db, a)]
+    for code in codes:
+        db.add(OrganizationFeature(organization_id=org.id, feature_code=code, enabled_from=start))
+    db.flush()
+    return codes
+
+
 def copy_coa_template(db: Session, organization_id: uuid.UUID, code: str) -> int:
     """Copiază cea mai nouă versiune a șablonului în `accounts`; întoarce numărul de conturi create."""
     tpl = db.scalar(select(CoaTemplate).where(CoaTemplate.code == code).order_by(CoaTemplate.version.desc()))
