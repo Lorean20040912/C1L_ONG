@@ -63,6 +63,10 @@ class OperationInput:
     activity_type: str | None = None
     description: str | None = None
     analytics: list[AnalyticsInput] = field(default_factory=list)
+    # contul ales explicit pe rândul documentului (ex. contul bancar 242/243 sau
+    # contul de cheltuieli din rândul facturii) înlocuiește contul din formulă
+    debit_account_id: uuid.UUID | None = None
+    credit_account_id: uuid.UUID | None = None
 
 
 @dataclass
@@ -205,8 +209,8 @@ def build_lines(
         generated.append(
             GeneratedLine(
                 line=LineInput(
-                    debit_account_id=resolve(rule.debit_account),
-                    credit_account_id=resolve(rule.credit_account),
+                    debit_account_id=op.debit_account_id or resolve(rule.debit_account),
+                    credit_account_id=op.credit_account_id or resolve(rule.credit_account),
                     amount=op.amount,
                     entry_date=on_date,
                     currency=op.currency,
