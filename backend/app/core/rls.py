@@ -64,3 +64,16 @@ def _after_begin(session: Session, transaction, connection) -> None:  # noqa: AN
             text("SELECT set_config('app.org_id', :org, true), set_config('app.user_id', :usr, true)"),
             {"org": ctx[0], "usr": ctx[1]},
         )
+
+
+def count_unscoped(db: Session, query):  # noqa: ANN001
+    """Rulează `query` (un scalar) fără restricția de organizație, apoi reia contextul.
+
+    Pentru verificări care privesc toate organizațiile unui utilizator (ex.: mai are vreo organizație?)
+    și care sub RLS ar vedea doar organizația curentă.
+    """
+    db.execute(text("SELECT set_config('app.org_id', '', true)"))
+    try:
+        return db.scalar(query)
+    finally:
+        _apply(db)

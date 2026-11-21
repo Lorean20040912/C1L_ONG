@@ -18,7 +18,10 @@ from app.auth.deps import USER_ADMIN_ROLES, OrgContext, get_org_context
 from app.auth.models import OrganizationMember, User
 from app.core.db import get_db
 from app.core.enums import UserRole
+from app.core.rls import count_unscoped
 from app.core.security import hash_password
+
+NO_ORGS = "retras din toate organizațiile"
 
 router = APIRouter(prefix="/organizations/{organization_id}/members", tags=["utilizatori"])
 
@@ -100,7 +103,7 @@ def add_member(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, "Pentru un utilizator nou completați numele și parola inițială"
             )
-        user = User(email=email, full_name=body.full_name.strip(), password_hash=hash_password(body.password))
+        user = User(email=email, full_name=body.full_name.strip(), password_hash=hash_password(body.password), must_change_password=True)
         db.add(user)
         db.flush()
     elif db.scalar(
@@ -109,6 +112,14 @@ def add_member(
         )
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, "Utilizatorul face deja parte din organizație")
+    reactivated = not created and user.is_active is False
+    if reactivated:
+        if user.deactivated_reason != NO_ORGS:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Contul este dezactivat și nu poate fi adăugat")
+        # fusese dezactivat la retragerea din toate organizațiile; revine cu parolă de schimbat
+        user.is_active = True
+        user.deactivated_reason = None
+        user.must_change_password = True
     member = OrganizationMember(organization_id=ctx.organization_id, user_id=user.id, role=body.role)
     db.add(member)
     db.flush()
@@ -119,7 +130,7 @@ def add_member(
         entity_id=member.id,
         organization_id=ctx.organization_id,
         user_id=ctx.user.id,
-        new_values={"email": email, "role": body.role.value, "new_user": created},
+        new_values={"email": email, "role": body.role.value, "new_user": created, "reactivated": reactivated},
     )
     db.commit()
     return _out(member, user)
@@ -168,5 +179,24 @@ def remove_member(
         user_id=ctx.user.id,
         old_values={"user_id": str(member.user_id), "role": member.role.value},
     )
+    user = db.scalar(select(User).where(User.id == member.user_id).with_for_update())
     db.delete(member)
+    db.flush()
+    # numărătoarea trece peste RLS: sub contextul organizației curente ar vedea doar rândurile ei
+    if user.is_active is not False and not count_unscoped(
+        db, select(func.count()).select_from(OrganizationMember).where(OrganizationMember.user_id == user.id)
+    ):
+        # fără nicio organizație contul nu mai are rost: se dezactivează (accesul nu se mai poate reface singur)
+        user.is_active = False
+        user.deactivated_reason = NO_ORGS
+        write_audit(
+            db,
+            action="update",
+            entity="users",
+            entity_id=user.id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user.id,
+            old_values={"is_active": True},
+            new_values={"is_active": False, "reason": NO_ORGS},
+        )
     db.commit()

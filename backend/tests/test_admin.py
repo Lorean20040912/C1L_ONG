@@ -244,7 +244,13 @@ def test_utilizatori_si_roluri(client, db, ong):
     )
     assert r.status_code == 201 and r.json()["email"] == "nou@exemplu.md"
     tokens = client.post("/auth/login", json={"email": "nou@exemplu.md", "password": "parola-initiala"}).json()
-    ws = client.get("/workspaces", headers={"Authorization": f"Bearer {tokens['access_token']}"}).json()
+    assert tokens["must_change_password"] is True
+    nh = {"Authorization": f"Bearer {tokens['access_token']}"}
+    assert client.get("/workspaces", headers=nh).status_code == 403  # până la schimbarea parolei inițiale
+    assert client.get("/auth/me", headers=nh).json()["must_change_password"] is True
+    assert client.post("/auth/password", json={"current_password": "parola-initiala", "new_password": "parola-noua-1"}, headers=nh).status_code == 204
+    assert client.get("/auth/me", headers=nh).json()["must_change_password"] is False
+    ws = client.get("/workspaces", headers=nh).json()
     assert ws[0]["organizations"][0]["role"] == "auditor"
 
     # utilizator existent din altă organizație: primește doar rolul

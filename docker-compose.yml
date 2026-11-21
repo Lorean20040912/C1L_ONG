@@ -3,6 +3,12 @@
 
 x-backend-env: &backend-env
   DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contahub}:${POSTGRES_PASSWORD:-contahub}@postgres:5432/${POSTGRES_DB:-contahub}
+  # aplicația rulează cu un rol fără superuser/BYPASSRLS (creat la migrare din APP_DB_*), ca RLS să se aplice;
+  # migrările și seed-ul folosesc DATABASE_URL (proprietarul schemei)
+  APP_DB_USER: ${APP_DB_USER:-contahub_app}
+  APP_DB_PASSWORD: ${APP_DB_PASSWORD:-contahub_app}
+  APP_DATABASE_URL: postgresql+psycopg://${APP_DB_USER:-contahub_app}:${APP_DB_PASSWORD:-contahub_app}@postgres:5432/${POSTGRES_DB:-contahub}
+  REQUIRE_RLS_ROLE: "true"
   REDIS_URL: redis://redis:6379/0
   JWT_SECRET: ${JWT_SECRET:-schimba-acest-secret-in-env}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:-schimba-cheia-de-criptare-in-env}

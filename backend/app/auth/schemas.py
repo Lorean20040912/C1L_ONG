@@ -24,6 +24,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: str
     full_name: str
+    must_change_password: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -41,6 +42,7 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
     requires_2fa: bool = False
     challenge_token: str | None = None
+    must_change_password: bool = False
 
 
 class Login2FARequest(BaseModel):

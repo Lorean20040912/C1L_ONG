@@ -9,6 +9,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<string | null>;
   login2fa: (challengeToken: string, code: string) => Promise<void>;
   logout: () => void;
+  /** reia utilizatorul de la server (după schimbarea parolei inițiale) */
+  refreshUser: () => Promise<void>;
 }
 
 interface LoginResponse extends Partial<TokenPair> {
@@ -49,7 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, login, login2fa, logout }}>{children}</AuthContext.Provider>;
+  const refreshUser = useCallback(async () => setUser(await api<User>("/auth/me")), []);
+
+  return <AuthContext.Provider value={{ user, loading, login, login2fa, logout, refreshUser }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

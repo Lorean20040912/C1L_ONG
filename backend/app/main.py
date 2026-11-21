@@ -1,5 +1,7 @@
 """Punctul de intrare al API-ului ContaHub."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -13,7 +15,7 @@ from app.auth.security_router import router as security_router
 from app.bank.router import router as bank_router
 from app.catalogs.router import router as catalogs_router
 from app.core.config import get_settings
-from app.core.db import get_db
+from app.core.db import assert_rls_role, get_db
 from app.documents.invoices_router import router as invoices_router
 from app.documents.payments_router import router as payments_router
 from app.documents.router import router as documents_router
@@ -39,7 +41,13 @@ from app.simple_ledger.router import router as simple_ledger_router
 from app.tasks.router import router as tasks_router
 from app.workspaces.router import router as workspaces_router
 
-app = FastAPI(title="ContaHub API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    assert_rls_role()
+    yield
+
+
+app = FastAPI(title="ContaHub API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
