@@ -88,3 +88,20 @@ entity_type = pg_enum(EntityType, "entity_type")
 accounting_method = pg_enum(AccountingMethod, "accounting_method")
 account_kind = pg_enum(AccountKind, "account_kind")
 subconto_type = pg_enum(SubcontoType, "subconto_type")
+
+
+class LineKind(str, enum.Enum):
+    fixed_asset = "fixed_asset"
+    low_value_item = "low_value_item"
+    material = "material"
+    goods = "goods"
+    service = "service"
+
+
+class PaymentDirection(str, enum.Enum):
+    incoming = "incoming"
+    outgoing = "outgoing"
+
+
+line_kind = pg_enum(LineKind, "line_kind")
+payment_direction = pg_enum(PaymentDirection, "payment_direction")
