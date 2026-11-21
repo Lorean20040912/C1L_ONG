@@ -8,6 +8,15 @@ from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, P
 from app.fixed_assets.models import FixedAsset
 from app.grants.models import BudgetLine, CostItem, Grant
 from app.month_close.models import MonthCloseRun
+from app.payroll.models import (
+    Contract,
+    ContractFunding,
+    ExemptionClaim,
+    IndividualPayment,
+    PayrollEntry,
+    PayrollPeriod,
+    Person,
+)
 from app.posting.models import (
     AccountingPeriod,
     AccountingPolicy,
@@ -29,13 +38,17 @@ __all__ = [
     "BankAccount",
     "BudgetLine",
     "CostItem",
+    "Contract",
+    "ContractFunding",
     "Counterparty",
     "Department",
     "Document",
     "EntryLine",
     "EntryLineAnalytics",
+    "ExemptionClaim",
     "FixedAsset",
     "Grant",
+    "IndividualPayment",
     "Invoice",
     "InvoiceLine",
     "MonthCloseRun",
@@ -43,6 +56,9 @@ __all__ = [
     "OrganizationMember",
     "PaymentOrder",
     "PaymentOrderLine",
+    "PayrollEntry",
+    "PayrollPeriod",
+    "Person",
     "PostingRule",
     "TaxRate",
     "User",
