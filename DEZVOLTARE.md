@@ -43,17 +43,23 @@ Commit-uri mici, în română, autor `Lorean Mandrescu`, fără mențiuni AI. Ra
 
 ## Stadiul
 
-Gata: autentificare și roluri, „Bazele mele”, nucleul contabil, reguli cu corecții, factura primită (MF/OMVSD/materiale/servicii, fișa MF), ordinul de plată, execuția bugetului cu avertisment, închiderea lunii (amortizare, venituri din mijloace cu destinație specială, verificări), OSV, operațiunea manuală, Administrare (politica, reguli, perioade, conturi bancare, granturi, utilizatori, planul de conturi).
+Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flux ca în `docker compose`): autentificare, bază nouă (expert), politică contabilă, factură + plată, închiderea lunii (amortizare, salarii, diferențe de curs, venituri, `account_closing`, verificări), transfer pe 535, închiderea perioadei, ONG17 (Excel), IPC21 (JSON și XML), import extras MAIB + înregistrare. Un singur head Alembic (`mrg_0008`); `alembic upgrade head` de la zero și `alembic check` sunt curate.
 
-Rămas — câte o sesiune pe domeniu, fiecare pornind de aici:
+| Modul | Stare |
+|-------|-------|
+| Nucleu, facturi, ordine de plată, execuția bugetului, OSV, operațiune manuală, Administrare | gata |
+| Închiderea lunii (toți pașii, inclusiv închiderea conturilor 6/7) | gata; pașii nu rulează și nu se anulează în luna închisă |
+| Salarii + IPC21 | gata (persoane, contracte, pontaj, plata cumulată, declarația); **cotele** de confirmat de contabilul-șef |
+| Rapoarte reglementate (ONG17, 5-CON, calendar) | gata; ONG17 doar Excel (nu are format XML) |
+| Bancă (formate, import cu deduplicare, export ordine, curs BNM, diferențe de curs) | gata |
+| Granturi (donatori, versiuni, tranșe, distribuirea stocurilor, transfer 535, repartizare) | gata, fără versiunile avansate de buget |
+| Baza nouă + profiluri de funcționalități | gata (expertul, `features`, partida simplă) |
+| Import 1C, e-Factura, asistent AI, securitate (2FA, RLS), sarcini, audit | gata în forma de bază |
+| Stocarea externă (Drive) și OCR | neîncepute (adaptoare externe) |
 
-| Domeniu | Ce cere | Unde în docs |
-|---------|---------|--------------|
-| Salarii + IPC21 | persons, contracts (CIM / civil), exemption_claims, contract_funding, payroll_periods / entries, individual_payments; cote din `tax_rates`; pasul „Calculul salariului”; plata cumulată (`payment_orders.kind = grouped_tax`) | ToR M3, `05-specificatie-IPC21.md`, `09-schimb-banci.md` |
-| Rapoarte reglementate | ONG17, 5-CON (din `entry_lines`, `cost_items.con5_article`, execuția bugetului), calendarul raportărilor pe pagina inițială | `06-…ONG17.md`, `07-…5CON.md` |
-| Bancă | `bank_formats`, import extras (TXT/DBF/DBO) cu deduplicare, export ordine, diferențe de curs (curs BNM) | `09-schimb-banci.md`, arhitectura §6 |
-| Granturi avansat | versiuni de buget, tranșe, donatori, distribuirea stocurilor (regula 716/211 cu `budget_line = drop`), repartizarea pe granturi | arhitectura §9a, `11-reguli…` §2.3 |
-| Bază nouă + profiluri | `features`, `organization_features`, `coa_templates`, expertul complet; partida simplă ÎI/GȚ | `13-tipuri-entitati-profiluri.md` |
-| e-Factura, storage, OCR/AI | adaptoare externe, `ai_actions` (propuneri Aplică / Respinge) | arhitectura §5, §7, §9 |
-| Import 1C | `onec_import_runs`, `onec_id_map`, solduri inițiale, reconcilierea balanței | ToR F7 |
-| ~~Securitate~~ | gata: 2FA TOTP, parolă, RLS (`app/core/rls.py` — tabelă nouă cu `organization_id` → `enable_rls_sql` în migrare), audit vizibil, sarcini (`app/tasks/`) | arhitectura §10, §9c |
+## Puncte rămase deschise
+
+1. **Cote salarizare**: valorile din `tax_rates` (CNAS, CNAM, impozit, scutiri) trebuie confirmate de contabilul-șef înainte de folosirea în producție.
+2. **Schema XML 5-CON**: de aliniat exportul la `5CON_xsd_2023` față de varianta `5-CON` implementată (`docs/07-specificatie-5CON.md`).
+3. **Versiuni de buget avansate**: comparația între versiuni, aprobarea și re-planificarea pe linii; acum există doar versiunile simple.
+4. **Docker**: fluxul a fost verificat fără Docker (indisponibil în mediul de verificare); `docker compose up --build` de rulat o dată pe o mașină cu Docker.
