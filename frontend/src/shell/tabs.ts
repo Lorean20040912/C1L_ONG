@@ -8,7 +8,10 @@ export type TabKind =
   | "invoice"
   | "payment-list"
   | "payment"
-  | "dtkt";
+  | "dtkt"
+  | "budget"
+  | "month-close"
+  | "fixed-assets";
 
 export interface Tab {
   id: string;
@@ -16,6 +19,9 @@ export interface Tab {
   kind: TabKind;
   fixed?: boolean;
   dirty?: boolean;
+  /** cheia de randare, fixată la deschidere: id-ul se poate schimba (document nou salvat),
+   * dar ecranul nu trebuie remontat în mijlocul unei operații */
+  key?: string;
   /** parametrii ecranului: id-ul documentului, secțiunea etc. */
   params?: Record<string, string>;
 }
@@ -39,6 +45,9 @@ export function useShell(): ShellApi {
 export const SCREEN_LINKS: Record<string, TabKind> = {
   "Facturi primite": "invoice-list",
   "Ordine de plată": "payment-list",
+  "Execuția bugetului": "budget",
+  "Închiderea lunii": "month-close",
+  "Fișa mijloacelor fixe": "fixed-assets",
 };
 
 let counter = 0;

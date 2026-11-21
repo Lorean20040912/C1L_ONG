@@ -3,8 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { ROLE_LABELS, type OrganizationBrief, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { BudgetExecution } from "../screens/BudgetExecution";
+import { FixedAssets } from "../screens/FixedAssets";
 import { InvoiceForm } from "../screens/InvoiceForm";
 import { InvoiceList } from "../screens/InvoiceList";
+import { MonthCloseScreen } from "../screens/MonthCloseScreen";
 import { PaymentForm } from "../screens/PaymentForm";
 import { PaymentList } from "../screens/PaymentList";
 import { PostingView } from "../screens/PostingView";
@@ -40,7 +43,7 @@ export function AppShell() {
   const org = useMemo(() => orgs.find((o) => o.id === orgId), [orgs, orgId]);
 
   const openTab = useCallback((tab: Tab) => {
-    setTabs((t) => (t.some((x) => x.id === tab.id) ? t : [...t, tab]));
+    setTabs((t) => (t.some((x) => x.id === tab.id) ? t : [...t, { ...tab, key: tab.key ?? tab.id }]));
     setActive(tab.id);
   }, []);
 
@@ -137,7 +140,7 @@ export function AppShell() {
         <div className="tabs" role="tablist">
           {tabs.map((t) => (
             <div
-              key={t.id}
+              key={t.key ?? t.id}
               role="tab"
               tabIndex={0}
               aria-selected={t.id === active}
@@ -167,7 +170,7 @@ export function AppShell() {
           {error && <div className="error">{error}</div>}
           {/* filele rămân montate (ascunse), ca un formular început să nu se piardă la comutare */}
           {tabs.map((t) => (
-            <div key={t.id} hidden={t.id !== active}>
+            <div key={t.key ?? t.id} hidden={t.id !== active}>
               <Screen tab={t} org={org} />
             </div>
           ))}
@@ -194,6 +197,12 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <PaymentList />;
     case "payment":
       return <PaymentForm tabId={tab.id} documentId={p.documentId} invoiceId={p.invoiceId} />;
+    case "budget":
+      return <BudgetExecution />;
+    case "month-close":
+      return <MonthCloseScreen />;
+    case "fixed-assets":
+      return <FixedAssets />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:
