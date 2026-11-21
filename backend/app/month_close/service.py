@@ -8,7 +8,7 @@ pași din ToR (repartizare pe granturi, diferențe de curs...) apar ca „în lu
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ from app.month_close.models import MonthCloseRun
 from app.month_close.steps import StepResult, StepRow, checks, closing_plan, income_plan
 from app.payroll import calc as payroll_calc
 from app.payroll.service import clear_entries, store_entries
-from app.posting.engine import PostingError, post_document, unpost_document
+from app.posting.engine import PostingError, _ensure_periods_open, post_document, unpost_document
 
 # pașii din ToR F2b.4, în ordine; `implemented` = are deja calcul
 STEPS = [
@@ -54,9 +54,15 @@ def steps_view(run: MonthCloseRun | None) -> list[dict]:
     ]
 
 
+def _ensure_month_open(db: Session, organization_id: uuid.UUID, year: int, month: int) -> None:
+    """Pașii nu se execută și nu se anulează într-o lună închisă (și când nu au înregistrări de scris)."""
+    _ensure_periods_open(db, organization_id, {date(year, month, 1)})
+
+
 def _ensure_run(
     db: Session, organization_id: uuid.UUID, year: int, month: int, user_id: uuid.UUID | None
 ) -> MonthCloseRun:
+    _ensure_month_open(db, organization_id, year, month)
     run = get_run(db, organization_id, year, month, lock=True)
     if run is None:
         run = MonthCloseRun(organization_id=organization_id, year=year, month=month, steps=[], status="draft")
@@ -123,6 +129,7 @@ def run_depreciation(
 def revert_depreciation(
     db: Session, organization_id: uuid.UUID, year: int, month: int, user_id: uuid.UUID | None
 ) -> None:
+    _ensure_month_open(db, organization_id, year, month)
     run = get_run(db, organization_id, year, month, lock=True)
     if run is None or not any(s["step"] == "depreciation" and s.get("status") == "done" for s in run.steps or []):
         raise PostingError("Amortizarea lunii nu a fost executată")
@@ -272,6 +279,7 @@ def run_step(
 def revert_step(
     db: Session, organization_id: uuid.UUID, year: int, month: int, step: str, user_id: uuid.UUID | None
 ) -> None:
+    _ensure_month_open(db, organization_id, year, month)
     run = get_run(db, organization_id, year, month, lock=True)
     saved = _step(run, step)
     if saved.get("status") not in ("done", "error"):

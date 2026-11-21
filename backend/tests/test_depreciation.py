@@ -335,3 +335,20 @@ def run_step_error(db, org, user):
     from app.month_close.service import preview_step
 
     return any("331" in e for e in preview_step(db, org.id, 2026, 4, "account_closing").errors)
+
+
+def test_pasii_nu_ruleaza_si_nu_se_anuleaza_intr_o_luna_inchisa(db, ong):
+    """Și când pasul nu are înregistrări de scris (zero rânduri), luna închisă rămâne neatinsă."""
+    from app.month_close.service import revert_step, run_step
+
+    user, org, *_ = ong
+    run_depreciation(db, org.id, 2026, 6, user.id)
+    run_step(db, org.id, 2026, 6, "payroll", user.id)
+    db.add(AccountingPeriod(organization_id=org.id, year=2026, month=6, is_closed=True))
+    db.flush()
+    with pytest.raises(PostingError, match="Perioada închisă"):
+        revert_depreciation(db, org.id, 2026, 6, user.id)
+    with pytest.raises(PostingError, match="Perioada închisă"):
+        run_step(db, org.id, 2026, 6, "payroll", user.id)
+    with pytest.raises(PostingError, match="Perioada închisă"):
+        revert_step(db, org.id, 2026, 6, "payroll", user.id)
