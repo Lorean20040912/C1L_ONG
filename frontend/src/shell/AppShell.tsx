@@ -40,6 +40,8 @@ import { AccountReports } from "../screens/reports/AccountReports";
 import { CostItemsScreen } from "../screens/reports/CostItemsScreen";
 import { RegulatedReport } from "../screens/reports/RegulatedReport";
 import { ReportingDataScreen } from "../screens/reports/ReportingDataScreen";
+import { EfacturaScreen } from "../screens/import/EfacturaScreen";
+import { OnecImportScreen } from "../screens/import/OnecImportScreen";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { ProfileContext, useProfileLoader } from "./profile";
@@ -269,6 +271,10 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <TrialBalance />;
     case "manual":
       return <ManualOperation tabId={tab.id} />;
+    case "onec-import":
+      return <OnecImportScreen />;
+    case "efactura":
+      return <EfacturaScreen />;
     case "persons":
       return <PersonsScreen />;
     case "contracts":

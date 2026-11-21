@@ -105,3 +105,13 @@ class PaymentDirection(str, enum.Enum):
 
 line_kind = pg_enum(LineKind, "line_kind")
 payment_direction = pg_enum(PaymentDirection, "payment_direction")
+
+
+class ImportStatus(str, enum.Enum):
+    pending = "pending"
+    running = "running"
+    done = "done"
+    failed = "failed"
+
+
+import_status = pg_enum(ImportStatus, "import_status")

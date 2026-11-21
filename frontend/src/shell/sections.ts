@@ -99,6 +99,7 @@ export const SECTIONS: Section[] = [
       Securitate: ["Securitatea contului", "Jurnal de audit"],
       Sarcini: ["Sarcini și termene"],
       Setări: ["Surse de documente (Drive / folder)", "Profiluri bănci", "Funcționalitate"],
+      Migrare: ["Import din 1C"],
     },
   },
 ];
