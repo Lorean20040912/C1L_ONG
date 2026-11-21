@@ -4,10 +4,10 @@
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CHAR, Boolean, Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy import CHAR, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -88,7 +88,10 @@ class GrantDonor(Base):
 
 class BudgetVersion(Base):
     __tablename__ = "budget_versions"
-    __table_args__ = (UniqueConstraint("grant_id", "version"),)
+    __table_args__ = (
+        UniqueConstraint("grant_id", "version"),
+        CheckConstraint("status IN ('draft', 'approved')", name="ck_budget_versions_status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
     grant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("grants.id"))
@@ -97,6 +100,10 @@ class BudgetVersion(Base):
     approved_document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("documents.id"))
     import_id: Mapped[uuid.UUID | None] = mapped_column(UUID)  # FK: budget_imports (modulul budget_import)
     is_current: Mapped[bool | None] = mapped_column(Boolean, server_default=text("true"))
+    status: Mapped[str] = mapped_column(Text, server_default="approved")  # draft | approved
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str | None] = mapped_column(Text)
 
 
 class GrantTranche(Base):

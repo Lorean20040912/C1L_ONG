@@ -1,6 +1,7 @@
 """Granturi avansat: donatori, versiuni de buget, tranșe, distribuirea stocurilor, repartizarea pe granturi."""
 
 from datetime import date
+import uuid
 from decimal import Decimal
 
 import pytest
@@ -187,6 +188,87 @@ def test_versiune_noua_validari(client, db, ong):
     assert client.post(base, json={"valid_from": "2026-06-01"}, headers=h).status_code == 201
     # data trebuie să fie după versiunea curentă
     assert client.post(base, json={"valid_from": "2026-05-01"}, headers=h).status_code == 422
+
+
+def test_proiect_de_versiune_se_aproba_separat(client, db, ong):
+    user, org, _, grant, _, bl, supplier = ong
+    h, base = auth_headers(user), f"/organizations/{org.id}/grants/{grant.id}"
+    r = client.post(
+        f"{base}/budget-versions", json={"valid_from": "2026-06-01", "draft": True, "note": "cerere donator", "changes": {"3.2": "3000"}},
+        headers=h,
+    )
+    assert r.status_code == 201
+    draft = r.json()
+    assert draft["status"] == "draft" and not draft["is_current"] and draft["note"] == "cerere donator"
+    # proiectul nu se aplică: lista, execuția și liniile rămân pe versiunea 1
+    lines = client.get(f"{base}/budget-lines", headers=h).json()
+    assert {ln["code"]: Decimal(ln["planned_amount"]) for ln in lines}["3.2"] == 1000
+    assert {r_.code: r_.planned for r_ in execution(db, org.id, grant.id)}["3.2"] == 1000
+    # se editează, apoi se aprobă
+    p = client.patch(f"{base}/budget-versions/{draft['id']}", json={"changes": {"3.2": "2500"}}, headers=h)
+    assert p.status_code == 200 and Decimal(p.json()["total_planned"]) == 22500
+    assert client.patch(f"{base}/budget-versions/{draft['id']}", json={"changes": {"9.9": "1"}}, headers=h).status_code == 422
+    ok = client.post(f"{base}/budget-versions/{draft['id']}/approve", headers=h)
+    assert ok.status_code == 200 and ok.json()["status"] == "approved" and ok.json()["is_current"]
+    assert ok.json()["approved_by"] == str(user.id) and ok.json()["approved_at"]
+    assert {r_.code: r_.planned for r_ in execution(db, org.id, grant.id)}["3.2"] == 2500
+    versions = client.get(f"{base}/budget-versions", headers=h).json()
+    assert [(v["version"], v["is_current"]) for v in versions] == [(1, False), (2, True)]
+    # o versiune aprobată nu se mai modifică, nu se aprobă a doua oară și nu se șterge
+    assert client.patch(f"{base}/budget-versions/{draft['id']}", json={"note": "x"}, headers=h).status_code == 409
+    assert client.post(f"{base}/budget-versions/{draft['id']}/approve", headers=h).status_code == 409
+    assert client.delete(f"{base}/budget-versions/{draft['id']}", headers=h).status_code == 409
+
+
+def test_proiect_de_versiune_stergere_si_roluri(client, db, ong):
+    user, org, _, grant, _, _, _ = ong
+    from app.auth.models import OrganizationMember
+
+    acc = make_user(db, "propunator@exemplu.md")
+    db.add(OrganizationMember(organization_id=org.id, user_id=acc.id, role=UserRole.accountant))
+    db.flush()
+    base = f"/organizations/{org.id}/grants/{grant.id}/budget-versions"
+    ha = auth_headers(acc)
+    # contabilul propune, dar nu aprobă și nu creează direct versiuni aprobate
+    d = client.post(base, json={"valid_from": "2026-06-01", "draft": True}, headers=ha)
+    assert d.status_code == 201
+    assert client.post(base, json={"valid_from": "2026-07-01"}, headers=ha).status_code == 403
+    assert client.post(f"{base}/{d.json()['id']}/approve", headers=ha).status_code == 403
+    # proiectul se șterge, versiunea 1 rămâne curentă
+    assert client.delete(f"{base}/{d.json()['id']}", headers=ha).status_code == 204
+    versions = client.get(base, headers=ha).json()
+    assert [(v["version"], v["is_current"]) for v in versions] == [(1, True)]
+    # proiect cu dată nepotrivită nu se aprobă
+    h = auth_headers(user)
+    d2 = client.post(base, json={"valid_from": "2026-06-01", "draft": True}, headers=h).json()
+    assert client.post(base, json={"valid_from": "2026-08-01"}, headers=h).status_code == 201
+    assert client.post(f"{base}/{d2['id']}/approve", headers=h).status_code == 422
+
+
+def test_comparatie_versiuni_si_realizat(client, db, ong):
+    user, org, _, grant, _, bl, supplier = ong
+    h, base = auth_headers(user), f"/organizations/{org.id}/grants/{grant.id}"
+    doc = make_invoice(
+        db, org, supplier,
+        [dict(description="Internet", amount=Decimal(800), line_kind=LineKind.service, budget_line_id=bl["3.2"].id)],
+        doc_date=D,
+    )  # fmt: skip
+    post_invoice(db, org.id, doc.id, user.id)
+    v2 = client.post(f"{base}/budget-versions", json={"valid_from": "2026-06-01", "changes": {"3.2": "3200"}}, headers=h).json()
+    v1 = client.get(f"{base}/budget-versions", headers=h).json()[0]
+    r = client.get(f"{base}/budget-comparison", params={"compare_to": v1["id"]}, headers=h)
+    assert r.status_code == 200
+    out = r.json()
+    assert out["version"] == 2 and out["compare_to"] == 1
+    row = {x["code"]: x for x in out["rows"]}["3.2"]
+    assert Decimal(row["planned"]) == 3200 and Decimal(row["other_planned"]) == 1000 and Decimal(row["delta"]) == 2200
+    assert Decimal(row["spent"]) == 800 and Decimal(row["remaining"]) == 2400 and Decimal(row["execution_pct"]) == Decimal("25.0")
+    assert Decimal(out["total_planned"]) - Decimal(out["total_other"]) == 2200 and Decimal(out["total_spent"]) == 800
+    # realizatul până la o dată anterioară cheltuielii
+    early = client.get(f"{base}/budget-comparison", params={"date_to": "2026-01-01"}, headers=h).json()
+    assert Decimal(early["total_spent"]) == 0
+    # versiune străină de grant → 404
+    assert client.get(f"{base}/budget-comparison", params={"compare_to": str(uuid.uuid4())}, headers=h).status_code == 404
 
 
 # ───────────────────────────── tranșe ─────────────────────────────

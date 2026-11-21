@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session, aliased
 from app.catalogs.models import Account
 from app.documents.models import Document
 from app.documents.posting import funding_of
-from app.grants.models import BudgetLine, CostItem, Grant
+from app.grants.models import BudgetLine, BudgetVersion, CostItem, Grant
 from app.posting.models import EntryLine
 from app.regulated.models import OrganizationStats
 from app.taxes.models import TaxRate
@@ -234,7 +234,8 @@ def _budget_excess(db: Session, organization_id: uuid.UUID, date_from: date, dat
     rows = db.execute(
         select(BudgetLine, Grant)
         .join(Grant, Grant.id == BudgetLine.grant_id)
-        .where(Grant.organization_id == organization_id)
+        .outerjoin(BudgetVersion, BudgetVersion.id == BudgetLine.budget_version_id)
+        .where(Grant.organization_id == organization_id, BudgetVersion.status.is_distinct_from("draft"))  # proiectele nu se aplică
         .order_by(Grant.code, BudgetLine.code)
     ).all()
     ids = [line.id for line, _ in rows]

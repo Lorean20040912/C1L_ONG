@@ -7,7 +7,7 @@
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,13 +16,14 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from app.audit.service import write_audit
-from app.auth.deps import POSTING_ROLES, OrgContext, get_org_context
+from app.auth.deps import ADMIN_ROLES, POSTING_ROLES, OrgContext, get_org_context
 from app.core.db import get_db
 from app.core.enums import DocumentType, PaymentDirection
 from app.documents.models import Document, PaymentOrder
 from app.documents.posting import _term
 from app.grants.admin_router import _grant, current_version_id
 from app.grants.models import BudgetLine, BudgetVersion, Donor, Grant, GrantDonor, GrantTranche
+from app.grants.budget import _spent
 from app.posting.models import EntryLine
 from app.posting.engine import PostingError, post_document, unpost_document
 from app.posting.router import http_error
@@ -198,6 +199,10 @@ class BudgetVersionOut(BaseModel):
     valid_from: date
     is_current: bool
     approved_document_id: uuid.UUID | None
+    status: str = "approved"
+    approved_by: uuid.UUID | None = None
+    approved_at: datetime | None = None
+    note: str | None = None
     lines_count: int
     total_planned: Decimal
 
@@ -205,6 +210,8 @@ class BudgetVersionOut(BaseModel):
 class BudgetVersionIn(BaseModel):
     valid_from: date
     approved_document_id: uuid.UUID | None = None
+    draft: bool = Field(default=False, description="proiect: se aprobă separat (ADMIN_ROLES), până atunci nu se aplică")
+    note: str | None = None
     # liniile noii versiuni (după cod); cele nemenționate se copiază neschimbate din versiunea curentă
     changes: dict[str, Decimal] = Field(default_factory=dict, description="cod linie → suma planificată nouă")
 
@@ -222,6 +229,10 @@ def _version_out(db: Session, v: BudgetVersion) -> BudgetVersionOut:
         valid_from=v.valid_from,
         is_current=bool(v.is_current),
         approved_document_id=v.approved_document_id,
+        status=v.status,
+        approved_by=v.approved_by,
+        approved_at=v.approved_at,
+        note=v.note,
         lines_count=all_lines or count,
         total_planned=total,
     )
@@ -278,10 +289,14 @@ def create_budget_version(
     for code, amount in body.changes.items():
         if amount < 0:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Suma liniei {code} e negativă")
-    current.is_current = False
+    if not body.draft:
+        _require_approver(ctx)
+        current.is_current = False
     new = BudgetVersion(
-        grant_id=grant_id, version=last + 1, valid_from=body.valid_from,
-        approved_document_id=body.approved_document_id, is_current=True,
+        grant_id=grant_id, version=last + 1, valid_from=body.valid_from, note=body.note,
+        approved_document_id=body.approved_document_id,
+        is_current=not body.draft, status="draft" if body.draft else "approved",
+        approved_by=None if body.draft else ctx.user.id, approved_at=None if body.draft else datetime.now().astimezone(),
     )  # fmt: skip
     db.add(new)
     db.flush()
@@ -306,10 +321,208 @@ def create_budget_version(
     db.flush()
     write_audit(
         db, action="create", entity="budget_versions", entity_id=new.id, organization_id=ctx.organization_id, user_id=ctx.user.id,
-        new_values={"version": new.version, "valid_from": body.valid_from.isoformat(), "changes": {k: str(v) for k, v in body.changes.items()}},
+        new_values={"version": new.version, "status": new.status, "valid_from": body.valid_from.isoformat(), "changes": {k: str(v) for k, v in body.changes.items()}},
     )  # fmt: skip
     db.commit()
     return _version_out(db, new)
+
+
+def _require_approver(ctx: OrgContext) -> None:
+    """Aprobarea unei versiuni de buget (care schimbă planul în vigoare) — rol de administrare contabilă."""
+    ctx.require(ADMIN_ROLES)
+
+
+def _version(db: Session, ctx: OrgContext, grant_id: uuid.UUID, version_id: uuid.UUID, lock: bool = False) -> BudgetVersion:
+    _grant(db, ctx, grant_id, lock=lock)
+    v = db.scalar(select(BudgetVersion).where(BudgetVersion.id == version_id, BudgetVersion.grant_id == grant_id))
+    if v is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Versiunea nu există")
+    return v
+
+
+class BudgetVersionPatch(BaseModel):
+    valid_from: date | None = None
+    note: str | None = None
+    changes: dict[str, Decimal] = Field(default_factory=dict, description="cod linie → suma planificată nouă")
+
+
+@router.patch("/grants/{grant_id}/budget-versions/{version_id}", response_model=BudgetVersionOut)
+def edit_draft_version(
+    grant_id: uuid.UUID,
+    version_id: uuid.UUID,
+    body: BudgetVersionPatch,
+    ctx: OrgContext = Depends(get_org_context),
+    db: Session = Depends(get_db),
+) -> BudgetVersionOut:
+    """Modifică un proiect de versiune (data, nota, sumele pe linii); o versiune aprobată nu se mai schimbă."""
+    ctx.require(POSTING_ROLES)
+    v = _version(db, ctx, grant_id, version_id, lock=True)
+    if v.status != "draft":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Versiunea e aprobată și nu se mai modifică; creați una nouă")
+    lines = {ln.code: ln for ln in db.scalars(select(BudgetLine).where(BudgetLine.budget_version_id == v.id))}
+    unknown = set(body.changes) - set(lines)
+    if unknown:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Linii necunoscute: {', '.join(sorted(unknown))}")
+    for code, amount in body.changes.items():
+        if amount < 0:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Suma liniei {code} e negativă")
+        line = lines[code]
+        line.planned_amount = amount
+        if line.cofinancing_amount is not None:
+            line.cofinancing_amount = min(line.cofinancing_amount, amount)
+        if line.donor_amount is not None:
+            line.donor_amount = min(line.donor_amount, amount)
+    if body.valid_from is not None:
+        v.valid_from = body.valid_from
+    if body.note is not None:
+        v.note = body.note
+    db.flush()
+    write_audit(
+        db, action="update", entity="budget_versions", entity_id=v.id, organization_id=ctx.organization_id, user_id=ctx.user.id,
+        new_values={"changes": {k: str(x) for k, x in body.changes.items()}},
+    )  # fmt: skip
+    db.commit()
+    return _version_out(db, v)
+
+
+@router.post("/grants/{grant_id}/budget-versions/{version_id}/approve", response_model=BudgetVersionOut)
+def approve_version(
+    grant_id: uuid.UUID,
+    version_id: uuid.UUID,
+    ctx: OrgContext = Depends(get_org_context),
+    db: Session = Depends(get_db),
+) -> BudgetVersionOut:
+    """Aprobă proiectul: devine versiunea curentă (data de aplicare trebuie să fie după cea curentă)."""
+    _require_approver(ctx)
+    v = _version(db, ctx, grant_id, version_id, lock=True)
+    if v.status != "draft":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Versiunea e deja aprobată")
+    current = db.get(BudgetVersion, current_version_id(db, grant_id))
+    if v.valid_from <= current.valid_from:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Data de aplicare trebuie să fie după cea a versiunii curente"
+        )
+    current.is_current = False
+    v.is_current = True
+    v.status = "approved"
+    v.approved_by = ctx.user.id
+    v.approved_at = datetime.now().astimezone()
+    db.flush()
+    write_audit(
+        db, action="approve", entity="budget_versions", entity_id=v.id, organization_id=ctx.organization_id, user_id=ctx.user.id,
+        new_values={"version": v.version, "valid_from": v.valid_from.isoformat()},
+    )  # fmt: skip
+    db.commit()
+    return _version_out(db, v)
+
+
+@router.delete("/grants/{grant_id}/budget-versions/{version_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_draft_version(
+    grant_id: uuid.UUID,
+    version_id: uuid.UUID,
+    ctx: OrgContext = Depends(get_org_context),
+    db: Session = Depends(get_db),
+) -> None:
+    ctx.require(POSTING_ROLES)
+    v = _version(db, ctx, grant_id, version_id, lock=True)
+    if v.status != "draft":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Doar un proiect de versiune se poate șterge")
+    lines = db.scalars(select(BudgetLine).where(BudgetLine.budget_version_id == v.id)).all()
+    for ln in lines:
+        ln.parent_id = None
+    db.flush()
+    for ln in lines:
+        db.delete(ln)
+    db.flush()
+    db.delete(v)
+    write_audit(
+        db, action="delete", entity="budget_versions", entity_id=v.id, organization_id=ctx.organization_id, user_id=ctx.user.id,
+        old_values={"version": v.version},
+    )  # fmt: skip
+    db.commit()
+
+
+class ComparisonRow(BaseModel):
+    code: str
+    name: str
+    planned: Decimal
+    other_planned: Decimal | None  # suma din versiunea de comparat (None = linia nu există acolo)
+    delta: Decimal | None
+    spent: Decimal
+    remaining: Decimal
+    execution_pct: Decimal | None
+
+
+class ComparisonOut(BaseModel):
+    version_id: uuid.UUID
+    version: int
+    compare_to_id: uuid.UUID | None
+    compare_to: int | None
+    date_to: date | None
+    rows: list[ComparisonRow]
+    total_planned: Decimal
+    total_other: Decimal | None
+    total_spent: Decimal
+
+
+@router.get("/grants/{grant_id}/budget-comparison", response_model=ComparisonOut)
+def budget_comparison(
+    grant_id: uuid.UUID,
+    version_id: uuid.UUID | None = None,
+    compare_to: uuid.UUID | None = None,
+    date_to: date | None = None,
+    ctx: OrgContext = Depends(get_org_context),
+    db: Session = Depends(get_db),
+) -> ComparisonOut:
+    """Comparația unei versiuni (implicit cea curentă) cu alta (`compare_to`) și cu realizatul până la `date_to`.
+
+    Realizatul se adună pe codul liniei din toate versiunile grantului (ca la execuția bugetului)."""
+    _grant(db, ctx, grant_id)
+    version = _version(db, ctx, grant_id, version_id) if version_id else None
+    if version is None:
+        cid = current_version_id(db, grant_id)
+        version = db.get(BudgetVersion, cid) if cid else None
+    if version is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Grantul nu are versiuni de buget")
+    other = _version(db, ctx, grant_id, compare_to) if compare_to else None
+    lines = db.scalars(select(BudgetLine).where(BudgetLine.budget_version_id == version.id).order_by(BudgetLine.code)).all()
+    other_lines = (
+        {ln.code: ln for ln in db.scalars(select(BudgetLine).where(BudgetLine.budget_version_id == other.id))} if other else {}
+    )
+    spent = _spent(db, ctx.organization_id, [ln.id for ln in lines], date_to)
+    rows = []
+    for ln in lines:
+        o = other_lines.get(ln.code)
+        s = spent.get(ln.id, Decimal(0))
+        rows.append(
+            ComparisonRow(
+                code=ln.code, name=ln.name, planned=ln.planned_amount,
+                other_planned=o.planned_amount if o else None,
+                delta=(ln.planned_amount - o.planned_amount) if o else None,
+                spent=s, remaining=ln.planned_amount - s,
+                execution_pct=(s * 100 / ln.planned_amount).quantize(Decimal("0.1")) if ln.planned_amount else None,
+            )
+        )  # fmt: skip
+    # liniile care există doar în versiunea comparată (eliminate din cea afișată)
+    shown = {ln.code for ln in lines}
+    for code, o in sorted(other_lines.items()):
+        if code not in shown:
+            rows.append(
+                ComparisonRow(
+                    code=code, name=o.name, planned=Decimal(0), other_planned=o.planned_amount,
+                    delta=-o.planned_amount, spent=Decimal(0), remaining=Decimal(0), execution_pct=None,
+                )
+            )  # fmt: skip
+    # totaluri pe liniile de nivel superior (copiii sunt incluși în părinte)
+    top = {ln.id for ln in lines if ln.parent_id is None}
+    total_planned = sum((ln.planned_amount for ln in lines if ln.id in top), Decimal(0))
+    total_spent = sum((spent.get(ln.id, Decimal(0)) for ln in lines if ln.id in top), Decimal(0))
+    total_other = sum((o.planned_amount for o in other_lines.values() if o.parent_id is None), Decimal(0)) if other else None
+    return ComparisonOut(
+        version_id=version.id, version=version.version, compare_to_id=other.id if other else None,
+        compare_to=other.version if other else None, date_to=date_to, rows=rows,
+        total_planned=total_planned, total_other=total_other, total_spent=total_spent,
+    )  # fmt: skip
 
 
 # ───────────────────────────── tranșe ─────────────────────────────

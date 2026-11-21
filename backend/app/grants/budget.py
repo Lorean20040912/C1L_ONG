@@ -96,7 +96,7 @@ def version_in_force(db: Session, grant_id: uuid.UUID, on_date: date | None) -> 
     fără dată — cea de azi (o versiune cu `valid_from` în viitor nu se aplică încă). None = grantul nu are versiuni (liniile nu sunt legate de versiune)."""
     versions = db.execute(
         select(BudgetVersion.id, BudgetVersion.valid_from, BudgetVersion.is_current)
-        .where(BudgetVersion.grant_id == grant_id)
+        .where(BudgetVersion.grant_id == grant_id, BudgetVersion.status == "approved")
         .order_by(BudgetVersion.version)
     ).all()
     if not versions:
