@@ -10,6 +10,7 @@ x-backend-env: &backend-env
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
   DEMO_EMAIL: ${DEMO_EMAIL:-}
   DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+  PERSONAL_DATA_KEY: ${PERSONAL_DATA_KEY:-}
 
 services:
   postgres:
