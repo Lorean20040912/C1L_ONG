@@ -97,6 +97,7 @@ export const SECTIONS: Section[] = [
       Contabilitate: ["Politica contabilă", "Reguli de înregistrare", "Perioade închise", "Conturi bancare"],
       Utilizatori: ["Utilizatori și drepturi"],
       Setări: ["Surse de documente (Drive / folder)", "Profiluri bănci", "Funcționalitate"],
+      Migrare: ["Import din 1C"],
     },
   },
 ];
