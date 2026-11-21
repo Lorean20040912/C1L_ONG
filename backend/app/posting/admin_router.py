@@ -10,7 +10,7 @@ import uuid
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,14 @@ class PolicyIn(BaseModel):
     stock_to_deferred_income: str = Field(default="unused_only", pattern="^(unused_only|all)$")
     fa_valuation_method: str | None = None
     settings: dict = {}
+
+    @field_validator("settings")
+    @classmethod
+    def _check_settings(cls, value: dict) -> dict:
+        age = value.get("max_rate_age_days")
+        if age is not None and (isinstance(age, bool) or not isinstance(age, int) or not 0 <= age <= 60):
+            raise ValueError("max_rate_age_days: număr întreg de zile între 0 și 60")
+        return value
 
 
 class PolicyOut(BaseModel):

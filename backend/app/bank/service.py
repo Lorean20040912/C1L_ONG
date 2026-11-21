@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.bank.exporters import ExportError, ExportOrder, clean_doc_number, export_orders
 from app.bank.models import BankAccount, BankFormat, BankImport, BankTransaction, PaymentBatch
 from app.bank.parsers import ParseError, StatementRow, parse_statement
-from app.bank.rates import rate_on
+from app.bank.rates import RateError, fresh_rate
 from app.catalogs.models import Counterparty
 from app.core.crypto_bank import normalize_iban
 from app.core.enums import DocumentType, PaymentDirection
@@ -144,8 +144,10 @@ def _draft(db: Session, organization_id: uuid.UUID, bank: BankAccount, row: Stat
     db.flush()
     rate = None
     if bank.currency != BASE_CURRENCY:
-        found = rate_on(db, organization_id, bank.currency, row.tx_date)
-        rate = found.rate if found else None
+        try:
+            rate = fresh_rate(db, organization_id, bank.currency, row.tx_date).rate
+        except RateError:
+            rate = None  # la înregistrare contabilul vede motivul (curs lipsă / depășit) și îl poate introduce
     order = PaymentOrder(
         document_id=doc.id,
         direction=row.direction,
@@ -264,6 +266,7 @@ class PostItem:
     transaction_id: uuid.UUID
     grant_id: uuid.UUID | None = None
     counterparty_id: uuid.UUID | None = None
+    exchange_rate: Decimal | None = None  # cursul introdus de contabil (plăți în valută fără curs proaspăt)
 
 
 def post_transactions(
@@ -299,6 +302,16 @@ def post_transactions(
                 if db.scalar(select(Grant.id).where(Grant.id == item.grant_id, Grant.organization_id == organization_id)) is None:
                     raise BankError("Grantul nu aparține organizației")
                 order.lines = [PaymentOrderLine(grant_id=item.grant_id, amount=doc.total_amount)]
+            if doc.currency and doc.currency != BASE_CURRENCY:
+                if item.exchange_rate is not None:
+                    if item.exchange_rate <= 0:
+                        raise BankError("Cursul trebuie să fie pozitiv")
+                    order.exchange_rate = item.exchange_rate
+                elif not order.exchange_rate:
+                    try:
+                        order.exchange_rate = fresh_rate(db, organization_id, doc.currency, doc.doc_date).rate
+                    except RateError as exc:
+                        raise BankError(str(exc)) from None
             db.flush()
             post_payment(db, organization_id, doc.id, user_id)
             savepoint.commit()
@@ -309,6 +322,33 @@ def post_transactions(
         except Exception:  # noqa: BLE001 - o eroare neprevăzută nu strică celelalte rânduri
             savepoint.rollback()
             results[tx.id] = "Rândul nu a putut fi înregistrat"
+    return results
+
+
+def unpost_transactions(
+    db: Session, organization_id: uuid.UUID, import_id: uuid.UUID, transaction_ids: list[uuid.UUID], user_id
+) -> dict[uuid.UUID, str | None]:
+    """Anulează înregistrarea rândurilor (documentul revine la ciornă); id → eroare (None = reușit)."""
+    from app.posting.engine import unpost_document
+
+    _, rows = import_transactions(db, organization_id, import_id)
+    by_id = {tx.id: tx for tx in rows}
+    results: dict[uuid.UUID, str | None] = {}
+    for tid in transaction_ids:
+        tx = by_id.get(tid)
+        if tx is None or tx.document_id is None:
+            results[tid] = "Rândul nu aparține importului"
+            continue
+        savepoint = db.begin_nested()
+        try:
+            doc = db.get(Document, tx.document_id)
+            if doc.is_posted:
+                unpost_document(db, organization_id=organization_id, document_id=doc.id, user_id=user_id)
+            savepoint.commit()
+            results[tid] = None
+        except PostingError as exc:
+            savepoint.rollback()
+            results[tid] = str(exc)
     return results
 
 

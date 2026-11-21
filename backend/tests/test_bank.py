@@ -336,6 +336,40 @@ def test_diferente_de_curs_pe_537_si_pe_venituri_financiare(db, ong):
                                      if s["step"] == "fx_difference")).is_posted  # fmt: skip
 
 
+def test_cursul_prea_vechi_se_refuza_cu_mesaj_clar(db, ong):
+    user, org, acc, grant, supplier, donor, bank = ong
+    post_lines(db, org, user, [
+        LineInput(debit_account_id=acc["243"].id, credit_account_id=acc["616"].id, amount=Decimal("1950.00"),
+                  currency_amount=Decimal(100), currency="EUR", entry_date=date(2026, 11, 5)),
+    ], "OP-EUR2")  # fmt: skip
+    db.add(ExchangeRate(organization_id=org.id, currency="EUR", rate_date=date(2026, 11, 10), rate=Decimal("19.8")))
+    db.flush()
+    stale = preview_step(db, org.id, 2026, 11, "fx_difference")
+    assert len(stale.errors) == 1 and "20 zile" in stale.errors[0] and "limita 5" in stale.errors[0]
+    policy = db.scalar(select(AccountingPolicy).where(AccountingPolicy.organization_id == org.id))
+    policy.settings = {"max_rate_age_days": 30}
+    db.flush()
+    assert preview_step(db, org.id, 2026, 11, "fx_difference").errors == []
+
+
+def test_anularea_inregistrarii_din_import(client, db, ong):
+    user, org, acc, grant, supplier, donor, bank = ong
+    h = auth_headers(user)
+    profile = fmt(db, "MAIB", "import_statement", "txt")
+    body = do_import(client, h, org, bank, profile.id, maib_txt(*ROWS[:1])).json()
+    tid = body["transactions"][0]["id"]
+    base = f"/organizations/{org.id}/bank-imports/{body['id']}"
+    assert client.post(f"{base}/post", headers=h, json={"items": [{"transaction_id": tid}]}).json()[0]["ok"]
+    res = client.post(f"{base}/unpost", headers=h, json={"transaction_ids": [tid]})
+    assert res.status_code == 200 and res.json()[0]["ok"]
+    assert not client.get(base, headers=h).json()["transactions"][0]["is_posted"]
+    assert db.scalars(select(EntryLine).where(EntryLine.organization_id == org.id)).first() is None
+    # alt import / altă organizație: 404
+    other = make_org(db, make_user(db, "x@exemplu.md"), "AO X")
+    assert client.post(f"/organizations/{other.id}/bank-imports/{body['id']}/unpost", headers=h,
+                       json={"transaction_ids": [tid]}).status_code in (403, 404)  # fmt: skip
+
+
 def test_fara_solduri_in_valuta(db, ong):
     _, org, *_ = ong
     plan = preview_step(db, org.id, 2026, 11, "fx_difference")

@@ -24,6 +24,7 @@ from app.bank.service import (
     import_statement,
     import_transactions,
     post_transactions,
+    unpost_transactions,
 )
 from app.core.db import get_db
 from app.core.enums import PaymentDirection
@@ -273,6 +274,11 @@ class PostItemIn(BaseModel):
     transaction_id: uuid.UUID
     grant_id: uuid.UUID | None = None
     counterparty_id: uuid.UUID | None = None
+    exchange_rate: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=4)
+
+
+class UnpostIn(BaseModel):
+    transaction_ids: list[uuid.UUID] = Field(min_length=1)
 
 
 class PostIn(BaseModel):
@@ -294,6 +300,20 @@ def post_import(
         results = post_transactions(
             db, ctx.organization_id, import_id, [PostItem(**i.model_dump()) for i in body.items], ctx.user.id
         )
+    except BankError as exc:
+        db.rollback()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
+    db.commit()
+    return [PostResultOut(transaction_id=k, ok=v is None, error=v) for k, v in results.items()]
+
+
+@router.post("/bank-imports/{import_id}/unpost", response_model=list[PostResultOut])
+def unpost_import(
+    import_id: uuid.UUID, body: UnpostIn, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+) -> list[PostResultOut]:
+    ctx.require(POSTING_ROLES)
+    try:
+        results = unpost_transactions(db, ctx.organization_id, import_id, body.transaction_ids, ctx.user.id)
     except BankError as exc:
         db.rollback()
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None

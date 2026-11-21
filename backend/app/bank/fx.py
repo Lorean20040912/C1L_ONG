@@ -20,7 +20,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.bank.rates import rate_on
+from app.bank.rates import RateError, fresh_rate
 from app.catalogs.models import Account
 from app.documents.posting import BASE_CURRENCY, funding_of
 from app.grants.models import Grant
@@ -73,10 +73,11 @@ def fx_plan(
         balances.items(), key=lambda kv: (codes.get(kv[0][0], ""), str(kv[0][1]), kv[0][2])
     ):
         if currency not in rates:
-            found = rate_on(db, organization_id, currency, end)
-            rates[currency] = found.rate if found else None
-            if found is None:
-                result.errors.append(f"Lipsește cursul BNM pentru {currency} la {end:%d.%m.%Y}")
+            try:
+                rates[currency] = fresh_rate(db, organization_id, currency, end).rate
+            except RateError as exc:
+                rates[currency] = None
+                result.errors.append(str(exc))
         rate = rates[currency]
         if rate is None:
             continue

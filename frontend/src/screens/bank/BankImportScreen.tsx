@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
-import type { BankFormat, BankImport } from "../../api/types";
+import type { BankFormat, BankImport, BankPostResult } from "../../api/types";
 import { useCatalogs } from "../../catalog/useCatalogs";
 import { useAction } from "../../lib/useAction";
 import { day, money } from "../../lib/format";
@@ -29,6 +29,8 @@ export function BankImportScreen() {
   const [formatId, setFormatId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<BankImport | null>(null);
+  const [choice, setChoice] = useState<Record<string, { grant?: string; cp?: string; rate?: string }>>({});
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
   const { busy, error, info, run } = useAction();
   const allowed = can(role, POSTING_ROLES);
 
@@ -59,6 +61,43 @@ export function BankImportScreen() {
         : `Importat: ${res.rows_created} rânduri noi, ${res.rows_skipped} sărite (duplicate), ${res.rows_failed} cu erori.`;
     });
 
+  const open = (id: string) =>
+    run(async () => {
+      const res = await api<BankImport>(`/organizations/${orgId}/bank-imports/${id}`);
+      setResult(res);
+      setChoice({});
+      setPicked({});
+    });
+
+  const act = (kind: "post" | "unpost") =>
+    run(async () => {
+      if (!result) return;
+      const ids = result.transactions.filter((t) => picked[t.id] && t.is_posted === (kind === "unpost")).map((t) => t.id);
+      if (ids.length === 0) throw new Error(kind === "post" ? "Bifați rândurile de înregistrat" : "Bifați rândurile înregistrate");
+      const body =
+        kind === "post"
+          ? {
+              items: ids.map((id) => ({
+                transaction_id: id,
+                grant_id: choice[id]?.grant || null,
+                counterparty_id: choice[id]?.cp || null,
+                exchange_rate: choice[id]?.rate ? choice[id]!.rate : null,
+              })),
+            }
+          : { transaction_ids: ids };
+      const out = await api<BankPostResult[]>(`/organizations/${orgId}/bank-imports/${result.id}/${kind}`, {
+        method: "POST",
+        body,
+      });
+      const failed = out.filter((r) => !r.ok);
+      const fresh = await api<BankImport>(`/organizations/${orgId}/bank-imports/${result.id}`);
+      setResult(fresh);
+      setPicked({});
+      if (failed.length) throw new Error(failed.map((f) => f.error).join("; "));
+      return `${out.length} rânduri ${kind === "post" ? "înregistrate" : "anulate"}.`;
+    });
+
+  const saved = result && !result.dry_run;
   return (
     <>
       <h1>Import extras bancar</h1>
@@ -104,6 +143,7 @@ export function BankImportScreen() {
           <table className="grid">
             <thead>
               <tr>
+                {saved && allowed && <th />}
                 <th>Data</th>
                 <th>Nr.</th>
                 <th>D/C</th>
@@ -112,11 +152,29 @@ export function BankImportScreen() {
                 <th>Valuta</th>
                 <th>Destinația</th>
                 <th>Potrivire</th>
+                {saved && allowed && (
+                  <>
+                    <th>Grant</th>
+                    <th>Contrapartidă</th>
+                    <th>Curs</th>
+                    <th>Stare</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               {result.transactions.map((t) => (
                 <tr key={t.id}>
+                  {saved && allowed && (
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label="Alege rândul"
+                        checked={!!picked[t.id]}
+                        onChange={(e) => setPicked({ ...picked, [t.id]: e.target.checked })}
+                      />
+                    </td>
+                  )}
                   <td>{day(t.tx_date)}</td>
                   <td>{t.doc_number}</td>
                   <td>{t.direction === "outgoing" ? "Plată" : "Încasare"}</td>
@@ -125,10 +183,66 @@ export function BankImportScreen() {
                   <td>{t.currency}</td>
                   <td>{t.purpose}</td>
                   <td>{t.match ? (MATCH[t.match] ?? t.match) : ""}</td>
+                  {saved && allowed && (
+                    <>
+                      <td>
+                        <select
+                          aria-label="Grant"
+                          disabled={t.is_posted}
+                          value={choice[t.id]?.grant ?? t.grant_id ?? ""}
+                          onChange={(e) => setChoice({ ...choice, [t.id]: { ...choice[t.id], grant: e.target.value } })}
+                        >
+                          <option value="" />
+                          {catalogs.grants.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.code}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          aria-label="Contrapartidă"
+                          disabled={t.is_posted}
+                          value={choice[t.id]?.cp ?? t.counterparty_id ?? ""}
+                          onChange={(e) => setChoice({ ...choice, [t.id]: { ...choice[t.id], cp: e.target.value } })}
+                        >
+                          <option value="" />
+                          {catalogs.counterparties.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        {t.currency && t.currency !== "MDL" && !t.is_posted && (
+                          <input
+                            aria-label="Curs BNM"
+                            size={7}
+                            placeholder="curs BNM"
+                            value={choice[t.id]?.rate ?? ""}
+                            onChange={(e) => setChoice({ ...choice, [t.id]: { ...choice[t.id], rate: e.target.value } })}
+                          />
+                        )}
+                      </td>
+                      <td>{t.is_posted ? "înregistrat" : "ciornă"}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+          {saved && allowed && (
+            <div className="bar">
+              <button className="b primary" disabled={busy} onClick={() => act("post")}>
+                Înregistrează rândurile bifate
+              </button>
+              <button className="b" disabled={busy} onClick={() => act("unpost")}>
+                Anulează înregistrarea
+              </button>
+            </div>
+          )}
         </section>
       )}
       <section>
@@ -148,7 +262,11 @@ export function BankImportScreen() {
             {history.map((h) => (
               <tr key={h.id}>
                 <td>{day(h.imported_at)}</td>
-                <td>{h.file_name}</td>
+                <td>
+                  <button className="link" onClick={() => open(h.id)}>
+                    {h.file_name ?? "extras"}
+                  </button>
+                </td>
                 <td className="num">{h.rows_total}</td>
                 <td className="num">{h.rows_created}</td>
                 <td className="num">{h.rows_skipped}</td>

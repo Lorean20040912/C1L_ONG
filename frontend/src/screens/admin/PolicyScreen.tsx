@@ -26,6 +26,8 @@ export function PolicyScreen() {
   const [recognition, setRecognition] = useState("on_signing");
   const [stocks, setStocks] = useState("unused_only");
   const [faMethod, setFaMethod] = useState("");
+  const [settings, setSettings] = useState<Record<string, unknown>>({});
+  const [rateAge, setRateAge] = useState("5");
   const { busy, error, info, run } = useAction();
   const editable = can(role, ADMIN_ROLES);
   const base = `/organizations/${orgId}/accounting-policies`;
@@ -41,6 +43,8 @@ export function PolicyScreen() {
           setRecognition(current.grant_recognition ?? "on_signing");
           setStocks(current.stock_to_deferred_income ?? "unused_only");
           setFaMethod(current.fa_valuation_method ?? "");
+          setSettings(current.settings ?? {});
+          setRateAge(String(current.settings?.max_rate_age_days ?? 5));
         }
       }),
     [base],
@@ -62,6 +66,7 @@ export function PolicyScreen() {
           grant_recognition: recognition,
           stock_to_deferred_income: stocks,
           fa_valuation_method: faMethod.trim() || null,
+          settings: { ...settings, max_rate_age_days: Number(rateAge) },
         },
       });
       await load();
@@ -90,6 +95,8 @@ export function PolicyScreen() {
                   </option>
                 ))}
             </select>
+            <label htmlFor="p-age">Vechimea maximă a cursului BNM (zile)</label>
+            <input id="p-age" type="number" min={0} max={60} value={rateAge} onChange={(e) => setRateAge(e.target.value)} />
             <label htmlFor="p-rec">Recunoașterea grantului</label>
             <select id="p-rec" className="wide" value={recognition} onChange={(e) => setRecognition(e.target.value)}>
               {Object.entries(RECOGNITION).map(([v, l]) => (

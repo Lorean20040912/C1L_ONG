@@ -36,6 +36,33 @@ def rate_on(db: Session, organization_id: uuid.UUID, currency: str, on_date: dat
     )
 
 
+DEFAULT_MAX_RATE_AGE_DAYS = 5  # BNM nu publică în zile de odihnă/sărbătoare; peste 5 zile cursul e considerat depășit
+
+
+def max_rate_age(db: Session, organization_id: uuid.UUID, on_date: date) -> int:
+    """Limita de vechime a cursului BNM: `settings.max_rate_age_days` din politica contabilă în vigoare."""
+    from app.posting.rules import policy_in_force
+
+    policy = policy_in_force(db, organization_id, on_date)
+    value = (policy.settings or {}).get("max_rate_age_days") if policy else None
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else DEFAULT_MAX_RATE_AGE_DAYS
+
+
+def fresh_rate(db: Session, organization_id: uuid.UUID, currency: str, on_date: date) -> ExchangeRate:
+    """Cursul zilei sau ultimul anterior, dar nu mai vechi decât limita; altfel `RateError` cu mesaj clar."""
+    found = rate_on(db, organization_id, currency, on_date)
+    if found is None:
+        raise RateError(f"Lipsește cursul BNM pentru {currency.upper()} la {on_date:%d.%m.%Y}")
+    age = (on_date - found.rate_date).days
+    limit = max_rate_age(db, organization_id, on_date)
+    if age > limit:
+        raise RateError(
+            f"Cursul BNM pentru {currency.upper()} la {on_date:%d.%m.%Y} lipsește; ultimul curs este din "
+            f"{found.rate_date:%d.%m.%Y} ({age} zile, limita {limit}). Descărcați sau introduceți cursul."
+        )
+    return found
+
+
 def save_rate(
     db: Session, organization_id: uuid.UUID, currency: str, rate_date: date, rate: Decimal, source: str = "manual"
 ) -> None:

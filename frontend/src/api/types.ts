@@ -320,6 +320,7 @@ export interface AccountingPolicy {
   grant_recognition: string | null;
   stock_to_deferred_income: string | null;
   fa_valuation_method: string | null;
+  settings?: Record<string, unknown> | null;
   approved_by_name: string | null;
 }
 
@@ -510,7 +511,15 @@ export interface BankTransaction {
   purpose: string | null;
   match: string | null;
   document_id: string | null;
+  counterparty_id: string | null;
+  grant_id: string | null;
   is_posted: boolean;
+}
+
+export interface BankPostResult {
+  transaction_id: string;
+  ok: boolean;
+  error: string | null;
 }
 
 export interface BankImport {
