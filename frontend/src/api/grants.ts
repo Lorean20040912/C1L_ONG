@@ -19,8 +19,31 @@ export interface BudgetVersion {
   version: number;
   valid_from: string;
   is_current: boolean;
+  status: "draft" | "approved";
+  approved_at: string | null;
+  note: string | null;
   lines_count: number;
   total_planned: string;
+}
+
+export interface ComparisonRow {
+  code: string;
+  name: string;
+  planned: string;
+  other_planned: string | null;
+  delta: string | null;
+  spent: string;
+  remaining: string;
+  execution_pct: string | null;
+}
+
+export interface Comparison {
+  version: number;
+  compare_to: number | null;
+  rows: ComparisonRow[];
+  total_planned: string;
+  total_other: string | null;
+  total_spent: string;
 }
 
 export interface BudgetLineRow {

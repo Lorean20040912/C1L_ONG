@@ -43,7 +43,7 @@ Commit-uri mici, în română, autor `Lorean Mandrescu`, fără mențiuni AI. Ra
 
 ## Stadiul
 
-Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flux ca în `docker compose`): autentificare, bază nouă (expert), politică contabilă, factură + plată, închiderea lunii (amortizare, salarii, diferențe de curs, venituri, `account_closing`, verificări), transfer pe 535, închiderea perioadei, ONG17 (Excel), IPC21 (JSON și XML), import extras MAIB + înregistrare. Un singur head Alembic (`mrg_0008`); `alembic upgrade head` de la zero și `alembic check` sunt curate.
+Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flux ca în `docker compose`): autentificare, bază nouă (expert), politică contabilă, factură + plată, închiderea lunii (amortizare, salarii, diferențe de curs, venituri, `account_closing`, verificări), transfer pe 535, închiderea perioadei, ONG17 (Excel), IPC21 (JSON și XML), import extras MAIB + înregistrare. Un singur head Alembic (`fix2_0001`); `alembic upgrade head` de la zero și `alembic check` sunt curate.
 
 | Modul | Stare |
 |-------|-------|
@@ -52,14 +52,15 @@ Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flu
 | Salarii + IPC21 | gata (persoane, contracte, pontaj, plata cumulată, declarația); **cotele** de confirmat de contabilul-șef |
 | Rapoarte reglementate (ONG17, 5-CON, calendar) | gata; ONG17 doar Excel (nu are format XML) |
 | Bancă (formate, import cu deduplicare, export ordine, curs BNM, diferențe de curs) | gata |
-| Granturi (donatori, versiuni, tranșe, distribuirea stocurilor, transfer 535, repartizare) | gata, fără versiunile avansate de buget |
+| Granturi (donatori, versiuni, tranșe, distribuirea stocurilor, transfer 535, repartizare) | gata, inclusiv versiunile de buget cu proiect → aprobare (ADMIN_ROLES) și comparația cu realizatul |
 | Baza nouă + profiluri de funcționalități | gata (expertul, `features`, partida simplă) |
-| Import 1C, e-Factura, asistent AI, securitate (2FA, RLS), sarcini, audit | gata în forma de bază |
+| Import 1C, e-Factura, asistent AI, sarcini, audit | gata în forma de bază |
+| Securitate (2FA, blocare la parole/2FA, RLS pe toate tabelele, parola inițială de schimbat, dezactivarea conturilor fără organizații) | gata, cu teste în `test_security.py`; punctele de revizuire sunt închise |
 | Stocarea externă (Drive) și OCR | neîncepute (adaptoare externe) |
 
 ## Puncte rămase deschise
 
 1. **Cote salarizare**: valorile din `tax_rates` (CNAS, CNAM, impozit, scutiri) trebuie confirmate de contabilul-șef înainte de folosirea în producție.
 2. **Schema XML 5-CON**: de aliniat exportul la `5CON_xsd_2023` față de varianta `5-CON` implementată (`docs/07-specificatie-5CON.md`).
-3. **Versiuni de buget avansate**: comparația între versiuni, aprobarea și re-planificarea pe linii; acum există doar versiunile simple.
+3. ~~Versiuni de buget avansate~~ — făcut: `POST /budget-versions` cu `draft`, `PATCH`/`DELETE` pe proiect, `POST …/approve`, `GET /budget-comparison` (versiune vs versiune vs realizat); ecran în „Donatori, versiuni de buget și tranșe”.
 4. **Docker**: fluxul a fost verificat fără Docker (indisponibil în mediul de verificare); `docker compose up --build` de rulat o dată pe o mașină cu Docker.

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
-import { TRANCHE_STATUS, type BudgetLineRow, type BudgetVersion, type Donor, type GrantDonor, type Tranche } from "../../api/grants";
+import { TRANCHE_STATUS, type BudgetLineRow, type BudgetVersion, type Comparison, type Donor, type GrantDonor, type Tranche } from "../../api/grants";
 import { useCatalogs } from "../../catalog/useCatalogs";
 import { day, money, parseAmount, today } from "../../lib/format";
 import { useAction } from "../../lib/useAction";
 import { Messages, ReadOnlyNote } from "../admin/Messages";
-import { POSTING_ROLES, can, useShell } from "../../shell/tabs";
+import { ADMIN_ROLES, POSTING_ROLES, can, useShell } from "../../shell/tabs";
 
 /** Donatorii, versiunile de buget și tranșele unui grant (docs/02 §9a). */
 export function GrantAdvancedScreen() {
@@ -19,6 +19,10 @@ export function GrantAdvancedScreen() {
   const [tranches, setTranches] = useState<Tranche[]>([]);
   const { busy, error, info, run, setError } = useAction();
   const editable = can(role, POSTING_ROLES);
+  const approver = can(role, ADMIN_ROLES);
+  const [cmpVersion, setCmpVersion] = useState("");
+  const [cmpTo, setCmpTo] = useState("");
+  const [cmp, setCmp] = useState<Comparison | null>(null);
   const base = `/organizations/${orgId}`;
   const grant = catalogs.grants.find((g) => g.id === grantId);
 
@@ -77,7 +81,21 @@ export function GrantAdvancedScreen() {
     setShare("");
   };
 
-  const newVersion = () =>
+  const loadComparison = () =>
+    run(async () => {
+      const q = new URLSearchParams();
+      if (cmpVersion) q.set("version_id", cmpVersion);
+      if (cmpTo) q.set("compare_to", cmpTo);
+      setCmp(await api<Comparison>(`${base}/grants/${grantId}/budget-comparison?${q}`));
+    });
+  const versionAction = (v: BudgetVersion, action: "approve" | "delete") =>
+    run(async () => {
+      if (action === "approve") await api(`${base}/grants/${grantId}/budget-versions/${v.id}/approve`, { method: "POST" });
+      else await api(`${base}/grants/${grantId}/budget-versions/${v.id}`, { method: "DELETE" });
+      load();
+      return action === "approve" ? "Versiunea a fost aprobată și e în vigoare." : "Proiectul a fost șters.";
+    });
+  const newVersion = (draft: boolean) =>
     run(async () => {
       const body: Record<string, string> = {};
       for (const [code, value] of Object.entries(changes)) {
@@ -86,10 +104,10 @@ export function GrantAdvancedScreen() {
         if (amount === null) throw new Error(`Suma liniei ${code} nu este validă`);
         body[code] = amount;
       }
-      await api(`${base}/grants/${grantId}/budget-versions`, { method: "POST", body: { valid_from: validFrom, changes: body } });
+      await api(`${base}/grants/${grantId}/budget-versions`, { method: "POST", body: { valid_from: validFrom, draft, changes: body } });
       setChanges({});
       load();
-      return "Versiunea nouă a bugetului a fost creată; cea veche rămâne pentru istoric.";
+      return draft ? "Proiectul de versiune a fost salvat; devine în vigoare după aprobare." : "Versiunea nouă a bugetului a fost creată; cea veche rămâne pentru istoric.";
     });
 
   const addTranche = () =>
@@ -200,6 +218,7 @@ export function GrantAdvancedScreen() {
                   <th>În vigoare din</th>
                   <th className="num">Linii</th>
                   <th className="num">Total planificat</th>
+                  <th>Stare</th>
                   <th />
                 </tr>
               </thead>
@@ -210,12 +229,24 @@ export function GrantAdvancedScreen() {
                     <td>{day(v.valid_from)}</td>
                     <td className="num">{v.lines_count}</td>
                     <td className="num">{money(v.total_planned)}</td>
-                    <td className="muted">{v.is_current ? "curentă" : ""}</td>
+                    <td className="muted">{v.status === "draft" ? "proiect" : v.is_current ? "curentă" : "aprobată"}</td>
+                    <td>
+                      {v.status === "draft" && approver && (
+                        <button className="b" onClick={() => versionAction(v, "approve")} disabled={busy}>
+                          Aprobă
+                        </button>
+                      )}{" "}
+                      {v.status === "draft" && editable && (
+                        <button className="b" onClick={() => versionAction(v, "delete")} disabled={busy}>
+                          Șterge
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {versions.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted">
+                    <td colSpan={6} className="muted">
                       Bugetul nu are încă versiuni; prima modificare aprobată o creează (liniile actuale devin versiunea 1).
                     </td>
                   </tr>
@@ -258,10 +289,87 @@ export function GrantAdvancedScreen() {
                     În vigoare din
                   </label>
                   <input id="ga-from" type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
-                  <button className="b primary" onClick={newVersion} disabled={busy || !validFrom}>
-                    Creează versiunea nouă
+                  <button className="b" onClick={() => newVersion(true)} disabled={busy || !validFrom}>
+                    Salvează ca proiect
+                  </button>
+                  {approver && (
+                    <button className="b primary" onClick={() => newVersion(false)} disabled={busy || !validFrom}>
+                      Creează și aprobă
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+            {versions.length > 0 && (
+              <>
+                <h3>Comparație cu realizatul</h3>
+                <div className="bar">
+                  <label htmlFor="ga-cv" className="muted">
+                    Versiunea
+                  </label>
+                  <select id="ga-cv" value={cmpVersion} onChange={(e) => setCmpVersion(e.target.value)}>
+                    <option value="">curentă</option>
+                    {versions.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        v{v.version}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="ga-ct" className="muted">
+                    comparată cu
+                  </label>
+                  <select id="ga-ct" value={cmpTo} onChange={(e) => setCmpTo(e.target.value)}>
+                    <option value="">— doar realizatul —</option>
+                    {versions.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        v{v.version}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="b" onClick={loadComparison} disabled={busy}>
+                    Arată
                   </button>
                 </div>
+                {cmp && (
+                  <table className="grid">
+                    <thead>
+                      <tr>
+                        <th>Linia</th>
+                        <th className="num">v{cmp.version}</th>
+                        {cmp.compare_to !== null && <th className="num">v{cmp.compare_to}</th>}
+                        {cmp.compare_to !== null && <th className="num">Diferență</th>}
+                        <th className="num">Realizat</th>
+                        <th className="num">Rest</th>
+                        <th className="num">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cmp.rows.map((r) => (
+                        <tr key={r.code}>
+                          <td>
+                            {r.code} {r.name}
+                          </td>
+                          <td className="num">{money(r.planned)}</td>
+                          {cmp.compare_to !== null && <td className="num">{r.other_planned ? money(r.other_planned) : "—"}</td>}
+                          {cmp.compare_to !== null && <td className="num">{r.delta ? money(r.delta) : "—"}</td>}
+                          <td className="num">{money(r.spent)}</td>
+                          <td className="num">{money(r.remaining)}</td>
+                          <td className="num">{r.execution_pct ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th>Total</th>
+                        <th className="num">{money(cmp.total_planned)}</th>
+                        {cmp.compare_to !== null && <th className="num">{cmp.total_other ? money(cmp.total_other) : "—"}</th>}
+                        {cmp.compare_to !== null && <th />}
+                        <th className="num">{money(cmp.total_spent)}</th>
+                        <th colSpan={2} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
               </>
             )}
           </section>
