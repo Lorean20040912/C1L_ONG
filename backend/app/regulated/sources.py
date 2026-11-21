@@ -307,7 +307,7 @@ def annex_1d(db: Session, organization_id: uuid.UUID, year: int, result: SourceR
         last = min(year, y + 2)
         received = Decimal(0)
         spent = {offset: dict.fromkeys((*DESIGNATION_CATEGORIES, "unclassified"), Decimal(0)) for offset in range(3)}
-        cash = _class_filter(("24",), ("6", "7"))
+        cash = _class_filter(("24", "7"), ("6", "7"))
         for ln in _lines(db, organization_id, date(y, 1, 1), date(last, 12, 31), cash, EntryLine.grant_id == grant.id):
             if _is(ln.debit, "24"):
                 received += ln.entry.amount
