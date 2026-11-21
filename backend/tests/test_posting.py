@@ -22,7 +22,7 @@ def setup(db):
 
 
 def new_doc(db, org, doc_date=date(2026, 11, 3)) -> Document:
-    doc = Document(organization_id=org.id, type=DocumentType.invoice, doc_number="AA1", doc_date=doc_date)
+    doc = Document(organization_id=org.id, type=DocumentType.other, doc_number="AA1", doc_date=doc_date)
     db.add(doc)
     db.flush()
     return doc

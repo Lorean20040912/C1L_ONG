@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.audit.service import write_audit
 from app.auth.deps import POSTING_ROLES, OrgContext, get_org_context
 from app.core.db import get_db
-from app.core.enums import SubcontoType, UserRole
+from app.core.enums import DocumentType, SubcontoType, UserRole
 from app.posting.engine import (
     AnalyticsInput,
     DocumentNotFound,
@@ -127,10 +127,34 @@ class PeriodOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-def _http_error(exc: PostingError) -> HTTPException:
+def http_error(exc: PostingError) -> HTTPException:
     if isinstance(exc, DocumentNotFound):
         return HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
     return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+
+
+def preview_out(db: Session, generated: list[GeneratedLine]) -> list[PreviewLine]:
+    """Rândurile generate, cu codurile conturilor și sursa regulii (pentru ecranul Dt/Kt)."""
+    ids = {g.line.debit_account_id for g in generated} | {g.line.credit_account_id for g in generated}
+    code = dict(db.execute(select(Account.id, Account.code).where(Account.id.in_(ids))).all())
+    return [
+        PreviewLine(
+            entry_date=g.line.entry_date,
+            debit_account=code[g.line.debit_account_id],
+            credit_account=code[g.line.credit_account_id],
+            amount=g.line.amount,
+            grant_id=g.line.grant_id,
+            budget_line_id=g.line.budget_line_id,
+            activity_type=g.line.activity_type,
+            rule_id=g.rule.id,
+            source_ref=g.rule.source_ref,
+        )
+        for g in generated
+    ]
+
+
+# documentele care își generează singure operațiunile au rutele lor (/invoices, /payment-orders)
+DEDICATED_ROUTES = {DocumentType.invoice: "invoices", DocumentType.payment_order: "payment-orders"}
 
 
 def _document(db: Session, ctx: OrgContext, document_id: uuid.UUID) -> Document:
@@ -138,6 +162,12 @@ def _document(db: Session, ctx: OrgContext, document_id: uuid.UUID) -> Document:
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Documentul nu a fost găsit")
     return doc
+
+
+def _refuse_dedicated(doc: Document, action: str) -> None:
+    route = DEDICATED_ROUTES.get(doc.type)
+    if route:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Documentul se înregistrează prin /{route}/{doc.id}/{action}")
 
 
 def _generate(
@@ -173,23 +203,8 @@ def preview(
     try:
         generated = _generate(db, ctx, doc, body.document_type, body.operations)
     except PostingError as exc:
-        raise _http_error(exc) from None
-    ids = {g.line.debit_account_id for g in generated} | {g.line.credit_account_id for g in generated}
-    code = dict(db.execute(select(Account.id, Account.code).where(Account.id.in_(ids))).all())
-    return [
-        PreviewLine(
-            entry_date=g.line.entry_date,
-            debit_account=code[g.line.debit_account_id],
-            credit_account=code[g.line.credit_account_id],
-            amount=g.line.amount,
-            grant_id=g.line.grant_id,
-            budget_line_id=g.line.budget_line_id,
-            activity_type=g.line.activity_type,
-            rule_id=g.rule.id,
-            source_ref=g.rule.source_ref,
-        )
-        for g in generated
-    ]
+        raise http_error(exc) from None
+    return preview_out(db, generated)
 
 
 @router.post("/documents/{document_id}/post", response_model=list[EntryLineOut])
@@ -201,6 +216,7 @@ def post(
 ) -> list[EntryLine]:
     """Înregistrează documentul: după regulile din posting_rules (operations) sau manual (lines)."""
     ctx.require(POSTING_ROLES)
+    _refuse_dedicated(_document(db, ctx, document_id), "post")
     try:
         rule_refs = None
         if body.operations is not None:
@@ -225,7 +241,7 @@ def post(
         )
     except PostingError as exc:
         db.rollback()
-        raise _http_error(exc) from None
+        raise http_error(exc) from None
     db.commit()
     return created
 
@@ -233,11 +249,12 @@ def post(
 @router.post("/documents/{document_id}/unpost", status_code=status.HTTP_204_NO_CONTENT)
 def unpost(document_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> None:
     ctx.require(POSTING_ROLES)
+    _refuse_dedicated(_document(db, ctx, document_id), "unpost")
     try:
         unpost_document(db, organization_id=ctx.organization_id, document_id=document_id, user_id=ctx.user.id)
     except PostingError as exc:
         db.rollback()
-        raise _http_error(exc) from None
+        raise http_error(exc) from None
     db.commit()
 
 

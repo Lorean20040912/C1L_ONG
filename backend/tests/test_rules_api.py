@@ -27,7 +27,7 @@ def ong(db):
         start_date=date(2026, 1, 1),
         end_date=date(2026, 12, 31),
     )
-    doc = Document(organization_id=org.id, type=DocumentType.invoice, doc_number="EF7", doc_date=date(2026, 3, 5))
+    doc = Document(organization_id=org.id, type=DocumentType.other, doc_number="EF7", doc_date=date(2026, 3, 5))
     db.add_all([grant, doc])
     db.flush()
     return user, org, grant, doc
@@ -45,7 +45,7 @@ def test_previzualizarea_nu_inregistreaza(client, db, ong):
     user, org, grant, doc = ong
     r = client.post(
         f"/organizations/{org.id}/documents/{doc.id}/preview",
-        json={"operations": grant_expense(grant)},
+        json={"document_type": "invoice", "operations": grant_expense(grant)},
         headers=auth_headers(user),
     )
     assert r.status_code == 200, r.text
@@ -60,7 +60,7 @@ def test_inregistrarea_dupa_reguli_si_auditul(client, db, ong):
     user, org, grant, doc = ong
     r = client.post(
         f"/organizations/{org.id}/documents/{doc.id}/post",
-        json={"operations": grant_expense(grant)},
+        json={"document_type": "invoice", "operations": grant_expense(grant)},
         headers=auth_headers(user),
     )
     assert r.status_code == 200, r.text
@@ -75,7 +75,7 @@ def test_cerere_cu_operatiuni_si_randuri_e_respinsa(client, ong):
     line = {"debit_account_id": str(grant.id), "credit_account_id": str(grant.id), "amount": "1"}
     r = client.post(
         f"/organizations/{org.id}/documents/{doc.id}/post",
-        json={"operations": grant_expense(grant), "lines": [line]},
+        json={"document_type": "invoice", "operations": grant_expense(grant), "lines": [line]},
         headers=auth_headers(user),
     )
     assert r.status_code == 422
@@ -85,7 +85,7 @@ def test_regula_lipsa_da_mesaj_clar(client, ong):
     user, org, grant, doc = ong
     r = client.post(
         f"/organizations/{org.id}/documents/{doc.id}/post",
-        json={"operations": [{"operation": "inexistenta", "amount": "1"}]},
+        json={"document_type": "invoice", "operations": [{"operation": "inexistenta", "amount": "1"}]},
         headers=auth_headers(user),
     )
     assert r.status_code == 422
@@ -121,12 +121,14 @@ def test_corectia_contabilului_sef_cu_versiuni(client, db, ong):
         {"operation": "expense", "amount": "10", "grant_id": str(grant.id), "attributes": {"funding": "unrestricted"}}
     ]
     march = client.post(
-        f"/organizations/{org.id}/documents/{doc.id}/preview", json={"operations": ops}, headers=auth_headers(user)
+        f"/organizations/{org.id}/documents/{doc.id}/preview",
+        json={"document_type": "invoice", "operations": ops},
+        headers=auth_headers(user),
     )
     assert march.json()[0]["debit_account"] == "713"
     june = client.post(
         f"/organizations/{org.id}/documents/{doc.id}/preview",
-        json={"operations": [{**ops[0], "entry_date": "2026-06-15"}]},
+        json={"document_type": "invoice", "operations": [{**ops[0], "entry_date": "2026-06-15"}]},
         headers=auth_headers(user),
     )
     assert june.json()[0]["debit_account"] == "717"
