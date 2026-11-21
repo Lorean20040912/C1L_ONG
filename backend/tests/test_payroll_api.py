@@ -51,6 +51,9 @@ def test_persoana_idnp_criptat_si_unic(api, db):
     client, h, org, *_ = api
     p = new_person(client, h, org)
     assert p["idnp"] == IDNP and p["idnp_masked"] == "200•••••••890"
+    # în listă IDNP-ul apare doar mascat; complet — la cererea unei persoane, pentru editare
+    assert client.get(f"{base(org)}/persons", headers=h).json()[0]["idnp"] is None
+    assert client.get(f"{base(org)}/persons/{p['id']}", headers=h).json()["idnp"] == IDNP
     from app.payroll.models import Person
 
     assert db.get(Person, p["id"]).idnp_enc != IDNP  # în BD stă criptat
@@ -100,8 +103,13 @@ def test_fluxul_complet_prin_api(api):
     sheet = client.get(f"{base(org)}/payroll/2026/11", headers=h).json()
     assert sheet["calculated"] and sheet["entries"][0]["net"] == "8305.00"
     assert sheet["totals"]["income_tax"] == "795.00"
-    # contractul cu salarii calculate nu se șterge
+    # contractul cu salarii calculate nu se șterge și nu-și schimbă persoana / tipul
     assert client.delete(f"{base(org)}/contracts/{c['id']}", headers=h).status_code == 409
+    other = new_person(client, h, org, "Rusu Maria", "2009876543210")
+    changed = contract_body(other["id"], grants, lines)
+    assert client.put(f"{base(org)}/contracts/{c['id']}", json=changed, headers=h).status_code == 409
+    raised = contract_body(p["id"], grants, lines, gross_amount="11000")
+    assert client.put(f"{base(org)}/contracts/{c['id']}", json=raised, headers=h).status_code == 200
 
     gp = client.post(
         f"{base(org)}/payroll/2026/11/grouped-payments",
@@ -195,4 +203,5 @@ def test_izolarea_pe_organizatie(api, db):
     db.flush()
     ha = auth_headers(auditor)
     assert client.get(f"{base(org)}/persons", headers=ha).status_code == 200
+    assert client.get(f"{base(org)}/persons/{p['id']}", headers=ha).status_code == 403  # IDNP complet — nu
     assert client.post(f"{base(org)}/persons", json={"full_name": "Yu Yi", "idnp": "2002222222222"}, headers=ha).status_code == 403

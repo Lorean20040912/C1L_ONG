@@ -408,3 +408,25 @@ def test_ipc21_semnaleaza_cpas_lipsa(db, ong):
     contract(db, p, funding=[(g["sor"], bl["sal"], 100)])
     run_step(db, org.id, Y, M, "payroll", user.id)
     assert any("CPAS" in e for e in ipc21.build(db, org.id, Y, M).errors)
+
+
+def test_finantarea_se_schimba_in_mijlocul_lunii(db, ong):
+    _, org, _, g, bl, _ = ong
+    c = contract(db, person(db, org), gross="3000", funding=[(g["sor"], bl["sal"], 100)])
+    c.funding[0].valid_to = date(2026, 11, 10)
+    c.funding.append(ContractFunding(grant_id=g["own"].id, budget_line_id=bl["own"].id, share_percent=Decimal(100),
+                                     valid_from=date(2026, 11, 11)))  # fmt: skip
+    db.flush()
+    r = calc_of(db, c)
+    assert r.error is None
+    sor, own = r.parts
+    assert sor.amounts["gross"] == Decimal("1000.00") and own.amounts["gross"] == Decimal("2000.00")  # 10 / 20 zile
+    assert sor.amounts["gross"] + own.amounts["gross"] == r.gross
+
+
+def test_o_zi_fara_finantare_opreste_calculul(db, ong):
+    _, org, _, g, bl, _ = ong
+    c = contract(db, person(db, org), funding=[(g["sor"], bl["sal"], 100)])
+    c.funding[0].valid_to = date(2026, 11, 20)
+    db.flush()
+    assert "21.11.2026" in calc_of(db, c).error
