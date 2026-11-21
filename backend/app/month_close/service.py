@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import DocumentType
 from app.documents.models import Document
+from app.grants import allocation as grant_allocation
 from app.month_close.depreciation import DepreciationPlan, month_bounds, plan
 from app.month_close.models import MonthCloseRun
 from app.month_close.steps import StepResult, StepRow, checks, income_plan
-from app.grants import allocation as grant_allocation
 from app.payroll import calc as payroll_calc
 from app.payroll.service import clear_entries, store_entries
 from app.posting.engine import PostingError, post_document, unpost_document

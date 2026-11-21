@@ -93,7 +93,7 @@ def _spent(
 
 def version_in_force(db: Session, grant_id: uuid.UUID, on_date: date | None) -> uuid.UUID | None:
     """Versiunea în vigoare: la o dată — ultima cu `valid_from` ≤ data (sau prima, dacă data e mai veche);
-    fără dată — cea curentă. None = grantul nu are versiuni (liniile nu sunt legate de versiune)."""
+    fără dată — cea de azi (o versiune cu `valid_from` în viitor nu se aplică încă). None = grantul nu are versiuni (liniile nu sunt legate de versiune)."""
     versions = db.execute(
         select(BudgetVersion.id, BudgetVersion.valid_from, BudgetVersion.is_current)
         .where(BudgetVersion.grant_id == grant_id)
@@ -101,8 +101,7 @@ def version_in_force(db: Session, grant_id: uuid.UUID, on_date: date | None) -> 
     ).all()
     if not versions:
         return None
-    if on_date is None:
-        return next((v[0] for v in versions if v[2]), versions[-1][0])
+    on_date = on_date or date.today()
     chosen = versions[0][0]
     for version_id, valid_from, _ in versions:
         if valid_from <= on_date:

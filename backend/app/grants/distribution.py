@@ -23,9 +23,8 @@ from app.core.enums import DocumentType
 from app.documents.models import Document
 from app.documents.posting import funding_of
 from app.grants.admin_router import _grant
-from app.month_close.depreciation import month_bounds
 from app.posting.engine import PostingError, post_document, unpost_document
-from app.posting.models import AccountTurnover, EntryLine
+from app.posting.models import EntryLine
 from app.posting.router import PreviewLine, http_error, preview_out
 from app.posting.rules import GeneratedLine, OperationInput, build_lines
 
@@ -68,35 +67,27 @@ def _operations(grant, body: DistributionIn) -> list[OperationInput]:
     ]
 
 
-def _stock_balance(db: Session, organization_id: uuid.UUID, on_date: date, exclude_document: uuid.UUID | None) -> Decimal:
-    """Soldul contului 211 la sfârșitul lunii datei (rulajele pe luni) fără documentul exclus."""
-    _, end = month_bounds(on_date.year, on_date.month)
+def _stock_balance(
+    db: Session, organization_id: uuid.UUID, grant_id: uuid.UUID, on_date: date, exclude_document: uuid.UUID | None
+) -> Decimal:
+    """Stocul grantului pe contul 211 la data distribuirii: intrările pe grant minus distribuirile lui."""
     account = db.scalar(select(Account.id).where(Account.organization_id == organization_id, Account.code == "211"))
     if account is None:
         raise PostingError("Contul 211 lipsește din planul de conturi")
-    balance = db.scalar(
-        select(func.coalesce(func.sum(AccountTurnover.debit - AccountTurnover.credit), 0)).where(
-            AccountTurnover.organization_id == organization_id,
-            AccountTurnover.account_id == account,
-            AccountTurnover.period <= end,
-        )
-    )
+    base = (EntryLine.organization_id == organization_id, EntryLine.grant_id == grant_id, EntryLine.entry_date <= on_date)
     if exclude_document is not None:
-        own = db.scalar(
-            select(func.coalesce(func.sum(EntryLine.amount), 0)).where(
-                EntryLine.document_id == exclude_document, EntryLine.credit_account_id == account
-            )
-        )
-        balance += own
-    return balance
+        base = (*base, EntryLine.document_id != exclude_document)
+    total_in = db.scalar(select(func.coalesce(func.sum(EntryLine.amount), 0)).where(*base, EntryLine.debit_account_id == account))
+    total_out = db.scalar(select(func.coalesce(func.sum(EntryLine.amount), 0)).where(*base, EntryLine.credit_account_id == account))
+    return total_in - total_out
 
 
 def _generate(
     db: Session, ctx: OrgContext, body: DistributionIn, exclude_document: uuid.UUID | None = None
 ) -> list[GeneratedLine]:
     grant = _grant(db, ctx, body.grant_id)
-    if _stock_balance(db, ctx.organization_id, body.doc_date, exclude_document) < body.amount:
-        raise PostingError("Suma distribuită depășește soldul stocurilor (contul 211)")
+    if _stock_balance(db, ctx.organization_id, body.grant_id, body.doc_date, exclude_document) < body.amount:
+        raise PostingError("Suma distribuită depășește stocul grantului (contul 211)")
     return build_lines(
         db,
         organization_id=ctx.organization_id,
@@ -117,12 +108,13 @@ def preview_distribution(
 
 
 def _next_number(db: Session, organization_id: uuid.UUID, year: int) -> str:
-    count = db.scalar(
-        select(func.count()).select_from(Document).where(
+    numbers = db.scalars(
+        select(Document.doc_number).where(
             Document.organization_id == organization_id, Document.doc_number.like(f"{PREFIX}{year}-%")
         )
-    )
-    return f"{PREFIX}{year}-{(count or 0) + 1:03d}"
+    ).all()
+    last = max((int(n.rsplit("-", 1)[1]) for n in numbers if n.rsplit("-", 1)[1].isdigit()), default=0)
+    return f"{PREFIX}{year}-{last + 1:03d}"
 
 
 @router.post("/stock-distributions", response_model=DistributionOut, status_code=status.HTTP_201_CREATED)

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.catalogs.models import Account
 from app.documents.models import Document
+from app.grants.admin_router import current_version_id
 from app.grants.models import Allocation, BudgetLine, Grant
 from app.month_close.depreciation import month_bounds
 from app.month_close.steps import StepResult, StepRow
@@ -86,6 +87,9 @@ def plan(
     }
     if len(rows) != len(ids):
         raise PostingError("O linie de buget nu aparține organizației")
+    stale = [g.code for line, g in rows.values() if line.budget_version_id != current_version_id(db, g.id)]
+    if stale:
+        raise PostingError(f"Linie dintr-o versiune veche a bugetului ({stale[0]}): alegeți linia versiunii curente")
     closed = [g.code for _, g in rows.values() if g.is_closed]
     if closed:
         raise PostingError(f"Grantul {closed[0]} este închis")
@@ -101,7 +105,7 @@ def plan(
     for line_in, share in zip(p.lines, shares):
         line, grant = rows[line_in.budget_line_id]
         if share <= 0:
-            continue
+            raise PostingError("Suma de repartizat e prea mică pentru coeficienții aleși (o linie ar primi 0)")
         generated = build_lines(
             db,
             organization_id=organization_id,

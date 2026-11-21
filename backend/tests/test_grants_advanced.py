@@ -352,3 +352,11 @@ def test_repartizare_api_validari(client, db, ong):
     step = next(s for s in run.json()["steps"] if s["step"] == "grant_allocation")
     assert step["status"] == "done" and Decimal(step["total"]) == 100
     assert client.post(f"{base}/steps/grant_allocation/revert", headers=h).status_code == 200
+
+
+def test_distribuirea_se_limiteaza_la_stocul_grantului(client, db, ong):
+    user, org, _, grant, other, bl, supplier = ong
+    buy_stock(db, org, user, supplier, bl["2.1"], "1000")  # stoc doar pe SOR
+    h, base = auth_headers(user), f"/organizations/{org.id}/stock-distributions"
+    body = {"doc_date": "2026-04-20", "grant_id": str(other.id), "amount": "10", "description": "x"}
+    assert client.post(base, json=body, headers=h).status_code == 422
