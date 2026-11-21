@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.audit.service import write_audit
 from app.auth.deps import ADMIN_ROLES, POSTING_ROLES, OrgContext, get_org_context
 from app.core.db import get_db
-from app.regulated import export
+from app.regulated import export, rsf2
 from app.regulated.errors import ReportError, ReportFrozen
 from app.regulated.models import ReportForm, ReportingCalendar, ReportStatus, TaxReport
 from app.regulated.service import (
@@ -335,6 +335,25 @@ def export_xml(report_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context),
         content,
         media_type="application/xml",
         headers={"Content-Disposition": f'attachment; filename="{export.file_name(out)}.xml"'},
+    )
+
+
+@router.get("/rsf2.xml")
+def export_rsf2(year: int, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> Response:
+    """Situațiile financiare anuale (RSF2), XML în formatul exportului oficial; valorile vin din contabilitate."""
+    if not 2000 <= year <= 2100:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Anul nu este valid")
+    org = db.get(Organization, ctx.organization_id)
+    content = rsf2.build_xml(org, year, rsf2.compute(db, org, year))
+    write_audit(
+        db, action="export", entity="tax_reports", entity_id=ctx.organization_id, organization_id=ctx.organization_id,
+        user_id=ctx.user.id, new_values={"format": "xml", "form": "RSF2", "year": year},
+    )  # fmt: skip
+    db.commit()
+    return Response(
+        content,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{rsf2.file_name(year)}.xml"'},
     )
 
 
