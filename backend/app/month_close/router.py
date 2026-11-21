@@ -16,6 +16,9 @@ from app.month_close.depreciation import DepreciationPlan, accumulated
 from app.month_close.service import (
     get_run,
     preview_depreciation,
+    preview_step,
+    revert_step,
+    run_step,
     revert_depreciation,
     run_depreciation,
     steps_view,
@@ -33,6 +36,7 @@ class StepOut(BaseModel):
     status: str
     entries: int | None = None
     total: Decimal | None = None
+    issues: list[str] = []
 
 
 class MonthCloseOut(BaseModel):
@@ -251,3 +255,70 @@ def update_fixed_asset(
     )
     db.commit()
     return _asset_out(asset, accumulated(db, ctx.organization_id, [asset.id]).get(asset.id, Decimal(0)))
+
+
+# ───────────── ceilalți pași (venituri, verificări) ─────────────
+
+GENERIC_STEPS = ("special_purpose_income", "checks")
+
+
+class StepRowOut(BaseModel):
+    label: str
+    amount: Decimal
+    debit_account: str | None
+    credit_account: str | None
+    note: str | None
+
+
+class StepPreviewOut(BaseModel):
+    step: str
+    total: Decimal
+    rows: list[StepRowOut]
+    errors: list[str]
+
+
+def _check_step(step: str) -> None:
+    if step not in GENERIC_STEPS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas necunoscut sau neimplementat")
+
+
+@router.post("/month-close/{year}/{month}/steps/{step}/preview", response_model=StepPreviewOut)
+def step_preview(
+    year: int, month: int, step: str, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+):
+    _check_step(step)
+    try:
+        r = preview_step(db, ctx.organization_id, year, month, step)
+    except PostingError as exc:
+        raise http_error(exc) from None
+    return StepPreviewOut(step=step, total=r.total, rows=[StepRowOut(**vars(x)) for x in r.rows], errors=r.errors)
+
+
+@router.post("/month-close/{year}/{month}/steps/{step}/run", response_model=MonthCloseOut)
+def step_run(
+    year: int, month: int, step: str, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+):
+    _check_step(step)
+    ctx.require(POSTING_ROLES)
+    try:
+        run_step(db, ctx.organization_id, year, month, step, ctx.user.id)
+    except PostingError as exc:
+        db.rollback()
+        raise http_error(exc) from None
+    db.commit()
+    return _month_close_out(db, ctx, year, month)
+
+
+@router.post("/month-close/{year}/{month}/steps/{step}/revert", response_model=MonthCloseOut)
+def step_revert(
+    year: int, month: int, step: str, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+):
+    _check_step(step)
+    ctx.require(POSTING_ROLES)
+    try:
+        revert_step(db, ctx.organization_id, year, month, step, ctx.user.id)
+    except PostingError as exc:
+        db.rollback()
+        raise http_error(exc) from None
+    db.commit()
+    return _month_close_out(db, ctx, year, month)

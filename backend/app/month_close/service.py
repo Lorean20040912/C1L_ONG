@@ -16,6 +16,7 @@ from app.core.enums import DocumentType
 from app.documents.models import Document
 from app.month_close.depreciation import DepreciationPlan, month_bounds, plan
 from app.month_close.models import MonthCloseRun
+from app.month_close.steps import StepResult, checks, income_plan
 from app.posting.engine import PostingError, post_document, unpost_document
 
 # pașii din ToR F2b.4, în ordine; `implemented` = are deja calcul
@@ -24,9 +25,9 @@ STEPS = [
     ("payroll", "Calculul salariului", False),
     ("grant_allocation", "Repartizarea cheltuielilor pe granturi", False),
     ("fx_difference", "Diferențe de curs valutar", False),
-    ("special_purpose_income", "Recunoașterea veniturilor din mijloace cu destinație specială", False),
+    ("special_purpose_income", "Recunoașterea veniturilor din mijloace cu destinație specială", True),
     ("account_closing", "Închiderea conturilor", False),
-    ("checks", "Verificări (Dt = Kt, solduri negative, documente neînregistrate)", False),
+    ("checks", "Verificări (Dt = Kt, solduri negative, documente neînregistrate)", True),
 ]
 
 
@@ -120,4 +121,95 @@ def revert_depreciation(
     if doc is not None and doc.is_posted:
         unpost_document(db, organization_id=organization_id, document_id=doc.id, user_id=user_id)
     _set_step(run, "depreciation", status="reverted", entries=0, total="0")
+    db.flush()
+
+
+# ───────────── ceilalți pași: fiecare pas care înregistrează are documentul lui ─────────────
+
+STEP_DOCUMENT_SUFFIX = {"special_purpose_income": "VEN"}
+
+
+def _step(run: MonthCloseRun | None, step: str) -> dict:
+    return next((s for s in (run.steps or []) if s["step"] == step), {}) if run else {}
+
+
+def _step_document(db: Session, run: MonthCloseRun, step: str, user_id: uuid.UUID | None) -> Document:
+    saved = _step(run, step).get("document_id")
+    if saved:
+        return db.get(Document, uuid.UUID(saved))
+    _, end = month_bounds(run.year, run.month)
+    doc = Document(
+        organization_id=run.organization_id,
+        type=DocumentType.other,
+        doc_number=f"ÎL-{run.year}-{run.month:02d}-{STEP_DOCUMENT_SUFFIX[step]}",
+        doc_date=end,
+        uploaded_by=user_id,
+    )
+    db.add(doc)
+    db.flush()
+    return doc
+
+
+def preview_step(db: Session, organization_id: uuid.UUID, year: int, month: int, step: str) -> StepResult:
+    if step == "checks":
+        run = get_run(db, organization_id, year, month)
+        own = {run.document_id} if run and run.document_id else set()
+        own |= {uuid.UUID(s["document_id"]) for s in (run.steps or []) if s.get("document_id")} if run else set()
+        return checks(db, organization_id, year, month, own)
+    if step == "special_purpose_income":
+        saved = _step(get_run(db, organization_id, year, month), step).get("document_id")
+        return income_plan(db, organization_id, year, month, uuid.UUID(saved) if saved else None)
+    raise PostingError("Pasul nu este încă implementat")
+
+
+def run_step(
+    db: Session, organization_id: uuid.UUID, year: int, month: int, step: str, user_id: uuid.UUID | None
+) -> StepResult:
+    run = _ensure_run(db, organization_id, year, month, user_id)
+    result = preview_step(db, organization_id, year, month, step)
+    values: dict = {"status": "done", "entries": len(result.lines), "total": str(result.total)}
+    if step == "checks":
+        # verificările nu înregistrează; cu probleme pasul rămâne „de corectat”
+        values = {"status": "error" if result.errors else "done", "entries": 0, "total": "0", "issues": result.errors}
+    else:
+        if result.errors:
+            raise PostingError("Pasul nu se poate executa: " + "; ".join(result.errors))
+        doc = _step_document(db, run, step, user_id)
+        values["document_id"] = str(doc.id)
+        if result.lines:
+            post_document(
+                db, organization_id=organization_id, document_id=doc.id, lines=[g.line for g in result.lines], user_id=user_id,
+                rule_refs=sorted({f"{g.rule.id} ({g.rule.source_ref})" for g in result.lines}),
+            )  # fmt: skip
+        elif doc.is_posted:
+            unpost_document(db, organization_id=organization_id, document_id=doc.id, user_id=user_id)
+    run.run_by = user_id
+    run.run_at = datetime.now()
+    _set_step(run, step, **values)
+    db.flush()
+    return result
+
+
+def revert_step(
+    db: Session, organization_id: uuid.UUID, year: int, month: int, step: str, user_id: uuid.UUID | None
+) -> None:
+    run = get_run(db, organization_id, year, month, lock=True)
+    saved = _step(run, step)
+    if saved.get("status") not in ("done", "error"):
+        raise PostingError("Pasul nu a fost executat")
+    if saved.get("document_id"):
+        doc = db.get(Document, uuid.UUID(saved["document_id"]))
+        if doc.is_posted:
+            unpost_document(db, organization_id=organization_id, document_id=doc.id, user_id=user_id)
+    _set_step(
+        run,
+        step,
+        **{
+            **{k: v for k, v in saved.items() if k != "step"},
+            "status": "reverted",
+            "entries": 0,
+            "total": "0",
+            "issues": [],
+        },
+    )
     db.flush()
