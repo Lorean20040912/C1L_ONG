@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.auth.deps import POSTING_ROLES, OrgContext, get_org_context
 from app.core.db import get_db
 from app.efactura.models import EfacturaMessage
-from app.efactura.service import STATUSES, EfacturaError, export_invoice, import_invoice
+from app.efactura.service import STATUSES, TRANSITIONS, EfacturaError, export_invoice, import_invoice
 from app.workspaces.models import Organization
 
 router = APIRouter(prefix="/organizations/{organization_id}/efactura", tags=["e-Factura"])
@@ -104,6 +104,9 @@ def set_status(message_id: uuid.UUID, body: StatusIn, ctx: OrgContext = Depends(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Statutul se schimbă doar pentru mesajele trimise")
     if body.status not in STATUSES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Statut necunoscut; valori: {', '.join(STATUSES)}")
+    current = msg.status or "draft"
+    if body.status not in TRANSITIONS.get(current, set()):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Din „{current}” nu se poate trece la „{body.status}”")
     msg.status, msg.synced_at = body.status, datetime.now()
     db.commit()
     return msg

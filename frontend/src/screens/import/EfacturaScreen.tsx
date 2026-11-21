@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, apiDownload } from "../../api/client";
+import { readXmlFile } from "../../lib/xmlFile";
 import { useAction } from "../../lib/useAction";
 import { day, money } from "../../lib/format";
 import { POSTING_ROLES, can, useShell } from "../../shell/tabs";
@@ -52,7 +53,7 @@ export function EfacturaScreen() {
   const importXml = () =>
     run(async () => {
       if (!file) throw new Error("Alegeți fișierul XML al facturii");
-      await api(`${base}/import`, { method: "POST", body: { xml: await file.text() } });
+      await api(`${base}/import`, { method: "POST", body: { xml: await readXmlFile(file) } });
       await load();
       return "Factura a fost importată ca factură primită (neînregistrată).";
     });
@@ -86,7 +87,7 @@ export function EfacturaScreen() {
               Importă factura
             </button>
           </div>
-          <label htmlFor="e-inv">Export: factura</label>
+          <label htmlFor="e-inv">Export: factura emisă</label>
           <select id="e-inv" value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)}>
             <option value="">—</option>
             {invoices.map((i) => (

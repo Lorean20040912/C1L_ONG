@@ -49,7 +49,7 @@ def test_parse_refuza_doctype_si_format_gresit():
     with pytest.raises(ImportFormatError):
         parse_export("<Altceva/>")
     with pytest.raises(ImportFormatError):
-        parse_export('<Export><Balances date="2026-01-01"><Balance account="221" debit="-1"/></Balances></Export>')
+        parse_export('<Export><Balances date="2026-01-01"><Balance account="221" debit="1.005"/></Balances></Export>')
 
 
 def test_import_solduri_si_reconciliere(db, org):
@@ -131,3 +131,26 @@ def test_izolare_si_roluri(client, db, org):
     r = client.post(f"/organizations/{o.id}/onec-import/runs", json={"xml": EXPORT}, headers=auth_headers(acc))
     assert r.status_code == 403
     assert db.scalar(select(func.count()).select_from(OnecImportRun)) >= 1
+
+
+def test_reimport_cu_sold_zero_anuleaza_inregistrarile(db, org):
+    user, o = org
+    run_import(db, organization_id=o.id, user_id=user.id, text=EXPORT)
+    zero = EXPORT.replace('debit="1500.50"', 'debit="0"').replace('debit="8000"', 'debit="0"').replace(
+        'credit="9500.50"', 'credit="0"')  # fmt: skip
+    run = run_import(db, organization_id=o.id, user_id=user.id, text=zero)
+    assert app_balances(db, o.id, date(2026, 1, 1)) == {}
+    assert run.reconciliation["ok"] is True
+
+
+def test_sume_cu_semn_spatii_si_encoding_declarat():
+    xml = (
+        '<?xml version="1.0" encoding="windows-1251"?><Export><Counterparties>'
+        f'<Counterparty guid="{GUID}" name="Ștefan SRL"/></Counterparties>'
+        '<Balances date="2026-01-01"><Balance account="221" debit="-50,00"/>'
+        '<Balance account="521" credit="1 234,50"/></Balances></Export>'
+    )
+    p = parse_export(xml)
+    assert p.counterparties[0].name == "Ștefan SRL"
+    assert (p.balances[0].debit, p.balances[0].credit) == (0, Decimal("50.00"))
+    assert p.balances[1].credit == Decimal("1234.50")

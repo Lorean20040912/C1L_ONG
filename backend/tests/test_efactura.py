@@ -92,6 +92,10 @@ def test_export_factura_din_aplicatie(client, db, org):
     r = client.put(f"/organizations/{o.id}/efactura/messages/{mid}/status", json={"status": "sent"}, headers=h)
     assert r.status_code == 200 and r.json()["status"] == "sent"
     assert client.put(f"/organizations/{o.id}/efactura/messages/{mid}/status", json={"status": "?"}, headers=h).status_code == 422
+    put = lambda st: client.put(f"/organizations/{o.id}/efactura/messages/{mid}/status", json={"status": st}, headers=h)  # noqa: E731
+    assert put("draft").status_code == 422  # înapoi nu se poate
+    assert put("accepted").status_code == 200
+    assert put("rejected").status_code == 422  # acceptata e finală
     assert client.post(f"/organizations/{o.id}/efactura/invoices/{doc_id}/export", headers=h).status_code == 422
 
 

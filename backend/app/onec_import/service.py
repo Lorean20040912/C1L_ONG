@@ -4,6 +4,7 @@ Format (prelucrarea de export XML, docs/01 F7.1) — vezi `parse_export`. Import
 fără dubluri: obiectele se regăsesc după GUID (`onec_id_map`), conturile după cod, contrapartidele
 după GUID sau IDNO. Funcțiile nu fac commit (DEZVOLTARE.md, principiul 5)."""
 
+import re
 import uuid
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -18,11 +19,12 @@ from app.catalogs.models import Account, Counterparty
 from app.core.enums import AccountKind, DocumentType, ImportStatus, SubcontoType
 from app.documents.models import Document
 from app.onec_import.models import OnecIdMap, OnecImportRun, OpeningBalance
-from app.posting.engine import AnalyticsInput, LineInput, PostingError, post_document
+from app.posting.engine import AnalyticsInput, LineInput, PostingError, post_document, unpost_document
 from app.posting.models import EntryLine
 
 OFFSET_ACCOUNT_CODE = "000"  # cont tehnic de contrapartidă pentru soldurile inițiale (partidă simplă → dublă)
 OPENING_DOC_NUMBER = "SOLD-INITIAL"
+OPENING_DOC_SOURCE = "onec-import"  # marca documentului creat de import (în `file_name`)
 CATALOG_COUNTERPARTY = "Catalog.Контрагенты"
 CENT = Decimal("0.01")
 
@@ -67,13 +69,15 @@ class ParsedExport:
 
 
 def _money(value: str | None, where: str) -> Decimal:
+    """Suma cu semn („-50.00”, „1 234,50”); cel mult 2 zecimale, nu se rotunjește în tăcere."""
+    clean = re.sub(r"[\s\u00a0]", "", value or "").replace(",", ".") or "0"
     try:
-        amount = Decimal((value or "0").replace(",", ".").strip() or "0")
+        amount = Decimal(clean)
     except InvalidOperation:
         raise ImportFormatError(f"{where}: sumă invalidă „{value}”") from None
-    if not amount.is_finite() or amount < 0:
-        raise ImportFormatError(f"{where}: suma trebuie să fie ≥ 0")
-    return amount.quantize(CENT)
+    if not amount.is_finite() or amount != amount.quantize(CENT):
+        raise ImportFormatError(f"{where}: suma trebuie să aibă cel mult 2 zecimale („{value}”)")
+    return amount
 
 
 def _date(value: str | None, where: str) -> date:
@@ -95,7 +99,7 @@ def parse_xml(text: str) -> ET.Element:
     if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
         raise ImportFormatError("DOCTYPE și entitățile XML nu sunt permise")
     try:
-        return ET.fromstring(text.encode("utf-8"))
+        return ET.fromstring(text)  # str: declarația `encoding=` din prolog e ignorată
     except ET.ParseError as exc:
         raise ImportFormatError(f"XML invalid: {exc}") from None
 
@@ -108,10 +112,9 @@ def _balances(node: ET.Element, label: str) -> list[BalanceRow]:
         if not code:
             raise ImportFormatError(f"{where}: lipsește contul")
         cp = b.get("counterparty_guid")
-        rows.append(
-            BalanceRow(code, _money(b.get("debit"), where), _money(b.get("credit"), where),
-                       _guid(cp, where) if cp else None)  # fmt: skip
-        )
+        debit, credit = _money(b.get("debit"), where), _money(b.get("credit"), where)
+        net = debit - credit  # storno (sume negative) → se reduce la o singură parte, cu semnul corect
+        rows.append(BalanceRow(code, max(net, Decimal(0)), max(-net, Decimal(0)), _guid(cp, where) if cp else None))
     return rows
 
 
@@ -142,7 +145,7 @@ def parse_export(text: str) -> ParsedExport:
             kind = AccountKind(a.get("kind") or "active_passive")
         except ValueError:
             raise ImportFormatError(f"Contul {code}: tip necunoscut „{a.get('kind')}”") from None
-        out.accounts.append(AccountRow(code, a.get("name") or code, kind, (a.get("currency") or "") == "true"))
+        out.accounts.append(AccountRow(code, a.get("name") or code, kind, (a.get("currency") or "").strip().lower() in ("true", "1")))
     for i, c in enumerate(root.findall("Counterparties/Counterparty"), start=1):
         where = f"Contrapartida {i}"
         name = (c.get("name") or "").strip()
@@ -175,7 +178,9 @@ def _import_accounts(db: Session, org_id: uuid.UUID, rows: list[AccountRow]) -> 
     existing = {a.code: a for a in db.scalars(select(Account).where(Account.organization_id == org_id))}
     created = 0
     for r in rows:
-        if r.code not in existing:
+        if r.code in existing:
+            existing[r.code].name = r.name
+        else:
             acc = Account(organization_id=org_id, code=r.code, name=r.name, account_kind=r.kind, is_currency=r.is_currency)
             db.add(acc)
             existing[r.code] = acc
@@ -278,17 +283,20 @@ def _import_balances(
             Document.type == DocumentType.other,
             Document.doc_number == OPENING_DOC_NUMBER,
             Document.doc_date == on,
+            Document.file_name == OPENING_DOC_SOURCE,
         )
     )
     if doc is None:
         doc = Document(organization_id=org_id, type=DocumentType.other, doc_number=OPENING_DOC_NUMBER, doc_date=on,
-                       uploaded_by=user_id)  # fmt: skip
+                       file_name=OPENING_DOC_SOURCE, uploaded_by=user_id)  # fmt: skip
         db.add(doc)
         db.flush()
     doc.total_amount = sum((x.amount for x in lines), Decimal(0))
     if lines:
         post_document(db, organization_id=org_id, document_id=doc.id, lines=lines, user_id=user_id,
                       rule_refs=["import 1C: solduri inițiale"])  # fmt: skip
+    elif doc.is_posted:
+        unpost_document(db, organization_id=org_id, document_id=doc.id, user_id=user_id)  # corecție: nu mai sunt solduri
     return {"rows": len(parsed.balances), "posted_lines": len(lines), "document_id": str(doc.id)}
 
 

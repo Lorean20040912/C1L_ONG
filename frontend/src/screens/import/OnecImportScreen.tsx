@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
+import { readXmlFile } from "../../lib/xmlFile";
 import { useAction } from "../../lib/useAction";
 import { day, money } from "../../lib/format";
 import { ADMIN_ROLES, can, useShell } from "../../shell/tabs";
@@ -56,7 +57,7 @@ export function OnecImportScreen() {
   const upload = () =>
     run(async () => {
       if (!file) throw new Error("Alegeți fișierul XML exportat din 1C");
-      const xml = await file.text();
+      const xml = await readXmlFile(file);
       const res = await api<Run>(`${base}/runs`, { method: "POST", body: { xml } }).finally(load);
       const rec = res.reconciliation;
       return rec

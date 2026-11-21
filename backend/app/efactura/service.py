@@ -28,6 +28,14 @@ NS = {
 for _p, _u in NS.items():
     ET.register_namespace("" if _p == "inv" else _p, _u)
 
+# tranziții permise ale statutului unui mesaj trimis
+TRANSITIONS = {
+    "draft": {"sent"},
+    "sent": {"signed", "accepted", "rejected"},
+    "signed": {"accepted", "rejected"},
+    "rejected": {"draft"},
+    "accepted": set(),
+}
 STATUSES = ("draft", "sent", "signed", "accepted", "rejected")
 CENT = Decimal("0.01")
 
@@ -182,6 +190,10 @@ def export_invoice(db: Session, *, organization_id: uuid.UUID, user_id: uuid.UUI
     invoice = db.scalar(select(Invoice).where(Invoice.document_id == document_id)) if doc else None
     if doc is None or invoice is None:
         raise EfacturaError("Factura nu a fost găsită")
+    if db.scalar(select(EfacturaMessage.id).where(EfacturaMessage.organization_id == organization_id,
+                                                  EfacturaMessage.document_id == doc.id,
+                                                  EfacturaMessage.direction == "received")) is not None:  # fmt: skip
+        raise EfacturaError("Factura a fost primită prin e-Factura; se exportă doar facturile emise de organizație")
     if not invoice.lines or doc.doc_date is None or not doc.doc_number:
         raise EfacturaError("Factura nu are număr, dată sau rânduri")
     customer = db.get(Counterparty, doc.counterparty_id) if doc.counterparty_id else None

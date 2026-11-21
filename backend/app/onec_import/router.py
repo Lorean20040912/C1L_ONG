@@ -7,6 +7,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import ADMIN_ROLES, OrgContext, get_org_context
@@ -77,13 +78,14 @@ def start_import(body: ImportIn, ctx: OrgContext = Depends(get_org_context), db:
     try:
         run = run_import(db, organization_id=ctx.organization_id, user_id=ctx.user.id, text=body.xml,
                          period_from=body.period_from, period_to=body.period_to)  # fmt: skip
-    except (ImportFormatError, PostingError) as exc:
+    except (ImportFormatError, PostingError, SQLAlchemyError) as exc:
         db.rollback()
+        reason = str(exc) if not isinstance(exc, SQLAlchemyError) else "Date în conflict (de ex. aceeași contrapartidă cu GUID-uri diferite)"
         now = datetime.now()
         db.add(OnecImportRun(organization_id=ctx.organization_id, source="xml", status=ImportStatus.failed,
-                             stats={"error": str(exc)}, started_by=ctx.user.id, started_at=now, finished_at=now))  # fmt: skip
+                             stats={"error": reason}, started_by=ctx.user.id, started_at=now, finished_at=now))  # fmt: skip
         db.commit()
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, reason) from None
     db.commit()
     return run
 
