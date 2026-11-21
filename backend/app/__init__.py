@@ -1,0 +1,1 @@
+"""ContaHub — API (monolit modular)."""

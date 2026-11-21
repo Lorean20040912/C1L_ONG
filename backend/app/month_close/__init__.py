@@ -1,0 +1,1 @@
+"""Asistentul „Închiderea lunii”."""
