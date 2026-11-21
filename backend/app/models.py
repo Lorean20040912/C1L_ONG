@@ -9,6 +9,8 @@ from app.features.models import CoaTemplate, Feature, OrganizationFeature, Organ
 from app.fixed_assets.models import FixedAsset
 from app.grants.models import BudgetLine, CostItem, Grant
 from app.month_close.models import MonthCloseRun
+from app.efactura.models import EfacturaMessage
+from app.onec_import.models import OnecIdMap, OnecImportRun, OpeningBalance
 from app.payroll.models import (
     Contract,
     ContractFunding,
@@ -50,6 +52,7 @@ __all__ = [
     "Counterparty",
     "Department",
     "Document",
+    "EfacturaMessage",
     "ExchangeRate",
     "EntryLine",
     "EntryLineAnalytics",
@@ -61,6 +64,9 @@ __all__ = [
     "Invoice",
     "InvoiceLine",
     "MonthCloseRun",
+    "OnecIdMap",
+    "OnecImportRun",
+    "OpeningBalance",
     "Organization",
     "OrganizationFeature",
     "OrganizationMember",
