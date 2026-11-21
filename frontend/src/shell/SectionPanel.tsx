@@ -1,6 +1,8 @@
 import type { Section } from "./sections";
+import { SCREEN_LINKS, useShell } from "./tabs";
 
-export function SectionPanel({ section, onOpen }: { section: Section; onOpen: (id: string, title: string) => void }) {
+export function SectionPanel({ section }: { section: Section }) {
+  const { openTab } = useShell();
   const groups = Object.entries(section.groups ?? {});
   return (
     <>
@@ -11,13 +13,22 @@ export function SectionPanel({ section, onOpen }: { section: Section; onOpen: (i
           <div key={group}>
             <h3>{group}</h3>
             <ul>
-              {links.map((title) => (
-                <li key={title}>
-                  <button className="link" onClick={() => onOpen(`screen:${section.id}:${title}`, title)}>
-                    {title}
-                  </button>
-                </li>
-              ))}
+              {links.map((title) => {
+                const kind = SCREEN_LINKS[title];
+                return (
+                  <li key={title}>
+                    <button
+                      className="link"
+                      onClick={() =>
+                        openTab(kind ? { id: kind, title, kind } : { id: `screen:${section.id}:${title}`, title, kind: "placeholder" })
+                      }
+                    >
+                      {title}
+                    </button>
+                    {!kind && <span className="muted"> · în lucru</span>}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))}

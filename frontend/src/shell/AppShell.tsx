@@ -1,23 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { ROLE_LABELS, type OrganizationBrief, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { InvoiceForm } from "../screens/InvoiceForm";
+import { InvoiceList } from "../screens/InvoiceList";
+import { PaymentForm } from "../screens/PaymentForm";
+import { PaymentList } from "../screens/PaymentList";
+import { PostingView } from "../screens/PostingView";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { SECTIONS } from "./sections";
 import { SectionPanel } from "./SectionPanel";
+import { ShellContext, type ShellApi, type Tab } from "./tabs";
 
-export interface Tab {
-  id: string;
-  title: string;
-  fixed?: boolean;
-}
-
-const HOME: Tab = { id: "home", title: "Pagina inițială", fixed: true };
+const HOME: Tab = { id: "home", title: "Pagina inițială", kind: "home", fixed: true };
 
 export function AppShell() {
-  const { orgId } = useParams();
+  const { orgId = "" } = useParams();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [orgs, setOrgs] = useState<OrganizationBrief[]>([]);
@@ -31,23 +31,46 @@ export function AppShell() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
+  // altă organizație = alt set de file (documentele deschise erau ale celeilalte)
+  useEffect(() => {
+    setTabs([HOME]);
+    setActive(HOME.id);
+  }, [orgId]);
+
   const org = useMemo(() => orgs.find((o) => o.id === orgId), [orgs, orgId]);
 
-  const openTab = useCallback((id: string, title: string) => {
-    setTabs((t) => (t.some((x) => x.id === id) ? t : [...t, { id, title }]));
-    setActive(id);
+  const openTab = useCallback((tab: Tab) => {
+    setTabs((t) => (t.some((x) => x.id === tab.id) ? t : [...t, tab]));
+    setActive(tab.id);
   }, []);
 
-  const closeTab = useCallback(
-    (id: string) => {
-      const i = tabs.findIndex((x) => x.id === id);
-      if (i < 0 || tabs[i].fixed) return;
-      const next = tabs.filter((x) => x.id !== id);
-      setTabs(next);
-      if (active === id) setActive(next[Math.max(0, i - 1)].id);
-    },
-    [tabs, active],
-  );
+  // filele curente pentru închidere: un formular poate închide fila imediat după ce
+  // i s-a schimbat id-ul (document nou salvat), înainte de următoarea randare
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+
+  const closeTab = useCallback((id: string, options?: { force?: boolean }) => {
+    const current = tabsRef.current;
+    const i = current.findIndex((x) => x.id === id);
+    if (i < 0 || current[i].fixed) return;
+    if (!options?.force && current[i].dirty && !window.confirm(`„${current[i].title}” are modificări nesalvate. Închideți fără salvare?`))
+      return;
+    const next = current.filter((x) => x.id !== id);
+    tabsRef.current = next;
+    setTabs(next);
+    setActive((a) => (a === id ? next[Math.max(0, i - 1)].id : a));
+  }, []);
+
+  const updateTab = useCallback((id: string, patch: Partial<Tab>) => {
+    const t = tabsRef.current;
+    const i = t.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const next = [...t.slice(0, i), { ...t[i], ...patch }, ...t.slice(i + 1)];
+    tabsRef.current = next;
+    setTabs(next);
+    // un document nou salvat primește id-ul lui real; fila activă îl urmează
+    if (patch.id && patch.id !== id) setActive((a) => (a === id ? patch.id! : a));
+  }, []);
 
   // Esc închide fila curentă, Ctrl+Tab trece la următoarea (docs/08 §3)
   useEffect(() => {
@@ -63,84 +86,117 @@ export function AppShell() {
     return () => document.removeEventListener("keydown", onKey);
   }, [active, tabs, closeTab]);
 
-  const activeTab = tabs.find((t) => t.id === active) ?? HOME;
-  const section = SECTIONS.find((s) => `section:${s.id}` === activeTab.id);
+  const shell: ShellApi = useMemo(() => ({ orgId, openTab, closeTab, updateTab }), [orgId, openTab, closeTab, updateTab]);
 
   return (
-    <div className="shell">
-      <header className="shell-top">
-        <button className="link" onClick={() => navigate("/")} title="Bazele mele" aria-label="Bazele mele">
-          ☰
-        </button>
-        <span className="logo">
-          Conta<b>Hub</b>
-        </span>
-        <select value={orgId} onChange={(e) => navigate(`/org/${e.target.value}`)} aria-label="Organizația curentă">
-          {!org && <option value={orgId}>…</option>}
-          {orgs.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
-        <div className="search">
-          <input placeholder="Căutare (Ctrl+F)" aria-label="Căutare" />
-        </div>
-        <span className="user" title={user?.email}>
-          {user?.full_name}
-          {org ? ` · ${ROLE_LABELS[org.role]}` : ""}
-        </span>
-        <button className="b" onClick={logout}>
-          Ieșire
-        </button>
-      </header>
-
-      <nav className="sections" aria-label="Secțiuni">
-        {SECTIONS.map((s) => {
-          const id = s.id === "home" ? HOME.id : `section:${s.id}`;
-          return (
-            <button key={s.id} className={active === id ? "active" : ""} onClick={() => openTab(id, s.title)}>
-              <span className="ico">{s.icon}</span>
-              <span className="t">{s.title}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="tabs" role="tablist">
-        {tabs.map((t) => (
-          <div
-            key={t.id}
-            role="tab"
-            tabIndex={0}
-            aria-selected={t.id === active}
-            className={`tab${t.id === active ? " active" : ""}`}
-            onClick={() => setActive(t.id)}
-            onKeyDown={(e) => e.key === "Enter" && setActive(t.id)}
-          >
-            {t.title}
-            {!t.fixed && (
-              <button
-                className="x"
-                aria-label={`Închide ${t.title}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeTab(t.id);
-                }}
-              >
-                ×
-              </button>
-            )}
+    <ShellContext.Provider value={shell}>
+      <div className="shell">
+        <header className="shell-top">
+          <button className="link" onClick={() => navigate("/")} title="Bazele mele" aria-label="Bazele mele">
+            ☰
+          </button>
+          <span className="logo">
+            Conta<b>Hub</b>
+          </span>
+          <select value={orgId} onChange={(e) => navigate(`/org/${e.target.value}`)} aria-label="Organizația curentă">
+            {!org && <option value={orgId}>…</option>}
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+          <div className="search">
+            <input placeholder="Căutare (Ctrl+F)" aria-label="Căutare" />
           </div>
-        ))}
-      </div>
+          <span className="user" title={user?.email}>
+            {user?.full_name}
+            {org ? ` · ${ROLE_LABELS[org.role]}` : ""}
+          </span>
+          <button className="b" onClick={logout}>
+            Ieșire
+          </button>
+        </header>
 
-      <main className="main">
-        {error && <div className="error">{error}</div>}
-        {activeTab.id === HOME.id && <HomeScreen org={org} />}
-        {section && <SectionPanel section={section} onOpen={openTab} />}
-        {!section && activeTab.id !== HOME.id && <PlaceholderScreen title={activeTab.title} />}
-      </main>
-    </div>
+        <nav className="sections" aria-label="Secțiuni">
+          {SECTIONS.map((s) => {
+            const id = s.id === "home" ? HOME.id : `section:${s.id}`;
+            return (
+              <button
+                key={s.id}
+                className={active === id ? "active" : ""}
+                onClick={() => (s.id === "home" ? setActive(HOME.id) : openTab({ id, title: s.title, kind: "section", params: { section: s.id } }))}
+              >
+                <span className="ico">{s.icon}</span>
+                <span className="t">{s.title}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="tabs" role="tablist">
+          {tabs.map((t) => (
+            <div
+              key={t.id}
+              role="tab"
+              tabIndex={0}
+              aria-selected={t.id === active}
+              className={`tab${t.id === active ? " active" : ""}`}
+              onClick={() => setActive(t.id)}
+              onKeyDown={(e) => e.key === "Enter" && setActive(t.id)}
+            >
+              {t.title}
+              {t.dirty ? " *" : ""}
+              {!t.fixed && (
+                <button
+                  className="x"
+                  aria-label={`Închide ${t.title}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(t.id);
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <main className="main">
+          {error && <div className="error">{error}</div>}
+          {/* filele rămân montate (ascunse), ca un formular început să nu se piardă la comutare */}
+          {tabs.map((t) => (
+            <div key={t.id} hidden={t.id !== active}>
+              <Screen tab={t} org={org} />
+            </div>
+          ))}
+        </main>
+      </div>
+    </ShellContext.Provider>
   );
+}
+
+function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) {
+  const p = tab.params ?? {};
+  switch (tab.kind) {
+    case "home":
+      return <HomeScreen org={org} />;
+    case "section": {
+      const section = SECTIONS.find((s) => s.id === p.section);
+      return section ? <SectionPanel section={section} /> : null;
+    }
+    case "invoice-list":
+      return <InvoiceList />;
+    case "invoice":
+      return <InvoiceForm tabId={tab.id} documentId={p.documentId} />;
+    case "payment-list":
+      return <PaymentList />;
+    case "payment":
+      return <PaymentForm tabId={tab.id} documentId={p.documentId} invoiceId={p.invoiceId} />;
+    case "dtkt":
+      return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
+    default:
+      return <PlaceholderScreen title={tab.title} />;
+  }
 }
