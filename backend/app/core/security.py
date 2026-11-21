@@ -10,7 +10,7 @@ from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 from app.core.config import get_settings
 
-TokenType = Literal["access", "refresh"]
+TokenType = Literal["access", "refresh", "challenge"]
 
 _hasher = PasswordHasher()
 
@@ -31,6 +31,8 @@ def create_token(user_id: uuid.UUID, token_type: TokenType) -> str:
     now = datetime.now(UTC)
     if token_type == "access":
         expires = now + timedelta(minutes=settings.access_token_minutes)
+    elif token_type == "challenge":  # pasul 2 al autentificării (2FA): valabil doar câteva minute
+        expires = now + timedelta(minutes=5)
     else:
         expires = now + timedelta(days=settings.refresh_token_days)
     payload = {

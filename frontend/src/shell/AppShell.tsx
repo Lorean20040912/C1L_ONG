@@ -11,7 +11,10 @@ import { ExchangeRatesScreen } from "../screens/bank/ExchangeRatesScreen";
 import { PaymentExportScreen } from "../screens/bank/PaymentExportScreen";
 import { BankAccountsScreen } from "../screens/admin/BankAccountsScreen";
 import { GrantsScreen } from "../screens/admin/GrantsScreen";
+import { AuditScreen } from "../screens/admin/AuditScreen";
 import { MembersScreen } from "../screens/admin/MembersScreen";
+import { SecurityScreen } from "../screens/admin/SecurityScreen";
+import { TasksScreen } from "../screens/admin/TasksScreen";
 import { PeriodsScreen } from "../screens/admin/PeriodsScreen";
 import { PolicyScreen } from "../screens/admin/PolicyScreen";
 import { RulesScreen } from "../screens/admin/RulesScreen";
@@ -252,6 +255,12 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <ExchangeRatesScreen />;
     case "members":
       return <MembersScreen />;
+    case "security":
+      return <SecurityScreen />;
+    case "audit":
+      return <AuditScreen />;
+    case "tasks":
+      return <TasksScreen />;
     case "periods":
       return <PeriodsScreen />;
     case "accounts":

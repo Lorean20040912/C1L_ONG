@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.auth.models import OrganizationMember, User
 from app.core.db import get_db
 from app.core.enums import UserRole
+from app.core.rls import set_rls_context
 from app.core.security import InvalidToken, decode_token
 
 _bearer = HTTPBearer(auto_error=False)
@@ -75,4 +76,6 @@ def get_org_context(
     if role is None:
         # 404, nu 403: nu confirmăm că organizația altcuiva există
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Organizația nu a fost găsită")
+    # Row-Level Security: de aici încolo tranzacțiile cererii văd doar această organizație
+    set_rls_context(db, organization_id, user.id)
     return OrgContext(organization_id=organization_id, user=user, role=role)

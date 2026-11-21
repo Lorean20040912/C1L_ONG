@@ -96,6 +96,8 @@ export const SECTIONS: Section[] = [
     groups: {
       Contabilitate: ["Politica contabilă", "Reguli de înregistrare", "Perioade închise", "Conturi bancare"],
       Utilizatori: ["Utilizatori și drepturi"],
+      Securitate: ["Securitatea contului", "Jurnal de audit"],
+      Sarcini: ["Sarcini și termene"],
       Setări: ["Surse de documente (Drive / folder)", "Profiluri bănci", "Funcționalitate"],
     },
   },

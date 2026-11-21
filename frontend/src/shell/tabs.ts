@@ -40,7 +40,10 @@ export type TabKind =
   | "simple-journal"
   | "donors"
   | "grant-advanced"
-  | "stock-distribution";
+  | "stock-distribution"
+  | "security"
+  | "audit"
+  | "tasks";
 
 export interface Tab {
   id: string;
@@ -114,6 +117,9 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Versiuni și tranșe": "grant-advanced",
   "Distribuirea stocurilor": "stock-distribution",
   "Repartizarea cheltuielilor": "month-close",
+  "Securitatea contului": "security",
+  "Jurnal de audit": "audit",
+  "Sarcini și termene": "tasks",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];

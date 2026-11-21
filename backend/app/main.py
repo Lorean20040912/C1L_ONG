@@ -5,8 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.audit.router import router as audit_router
 from app.auth.members_router import router as members_router
 from app.auth.router import router as auth_router
+from app.auth.security_router import router as security_router
 from app.bank.router import router as bank_router
 from app.catalogs.router import router as catalogs_router
 from app.core.config import get_settings
@@ -31,6 +33,7 @@ from app.reports.accounts_router import router as account_reports_router
 from app.reports.router import router as reports_router
 from app.posting.rules_router import router as rules_router
 from app.simple_ledger.router import router as simple_ledger_router
+from app.tasks.router import router as tasks_router
 from app.workspaces.router import router as workspaces_router
 
 app = FastAPI(title="ContaHub API", version="0.1.0")
@@ -44,6 +47,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(security_router)
 app.include_router(catalogs_router)
 app.include_router(workspaces_router)
 app.include_router(features_router)
@@ -68,6 +72,8 @@ app.include_router(account_reports_router)
 app.include_router(regulated_router)
 app.include_router(regulated_settings_router)
 app.include_router(bank_router)
+app.include_router(audit_router)
+app.include_router(tasks_router)
 
 
 @app.get("/health", tags=["sistem"])
