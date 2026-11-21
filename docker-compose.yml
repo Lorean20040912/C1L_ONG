@@ -1,0 +1,75 @@
+# ContaHub — pornire locală: `docker compose up --build`, apoi http://localhost:8080
+# Valorile implicite sunt pentru dezvoltare; în producție se suprascriu în .env.
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-contahub}:${POSTGRES_PASSWORD:-contahub}@postgres:5432/${POSTGRES_DB:-contahub}
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:-schimba-acest-secret-in-env}
+  ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-15}
+  REFRESH_TOKEN_DAYS: ${REFRESH_TOKEN_DAYS:-7}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+  DEMO_EMAIL: ${DEMO_EMAIL:-}
+  DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-contahub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-contahub}
+      POSTGRES_DB: ${POSTGRES_DB:-contahub}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    # la pornire: migrările Alembic, datele demonstrative (dacă DEMO_EMAIL e setat), apoi uvicorn
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    environment: *backend-env
+    depends_on:
+      api:
+        condition: service_healthy
+
+  nginx:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
