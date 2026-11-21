@@ -360,3 +360,25 @@ def test_distribuirea_se_limiteaza_la_stocul_grantului(client, db, ong):
     h, base = auth_headers(user), f"/organizations/{org.id}/stock-distributions"
     body = {"doc_date": "2026-04-20", "grant_id": str(other.id), "amount": "10", "description": "x"}
     assert client.post(base, json=body, headers=h).status_code == 422
+
+
+def test_transferul_stocului_nefolosit_pe_535(client, db, ong):
+    user, org, _, grant, _, bl, supplier = ong
+    buy_stock(db, org, user, supplier, bl["2.1"], "3000")
+    h, base = auth_headers(user), f"/organizations/{org.id}"
+    client.post(f"{base}/stock-distributions", headers=h, json={
+        "doc_date": "2026-04-20", "grant_id": str(grant.id), "amount": "1200", "description": "Mobilier"})  # fmt: skip
+    body = {"as_of": "2026-12-31", "grant_id": str(grant.id)}
+    preview = client.post(f"{base}/stock-transfers/preview", json=body, headers=h).json()
+    assert preview["total"] == "1800.00" and preview["items"][0]["stock"] == "1800.00"
+    assert [(p["debit_account"], p["credit_account"], p["budget_line_id"]) for p in preview["lines"]] == [("537", "535", None)]
+    r = client.post(f"{base}/stock-transfers", json=body, headers=h)
+    assert r.status_code == 201 and r.json()["doc_number"] == "TS-2026-001" and r.json()["amount"] == "1800.00"
+    # repetarea: nu mai e nimic de transferat
+    assert client.post(f"{base}/stock-transfers", json=body, headers=h).status_code == 422
+    # toate granturile (fără grant_id) — același rezultat, apoi anularea refă transferul
+    assert client.delete(f"{base}/stock-distributions/{r.json()['document_id']}", headers=h).status_code == 204
+    assert client.post(f"{base}/stock-transfers/preview", json={"as_of": "2026-12-31"}, headers=h).json()["total"] == "1800.00"
+    # grant din altă organizație: 404; rol de citire: 403 implicit prin POSTING_ROLES
+    other = make_org(db, make_user(db, "alta2@exemplu.md"), "AO Alta")
+    assert client.post(f"/organizations/{other.id}/stock-transfers/preview", json=body, headers=h).status_code in (403, 404)

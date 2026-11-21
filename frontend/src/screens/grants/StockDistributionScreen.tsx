@@ -18,6 +18,13 @@ export function StockDistributionScreen() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [deferred, setDeferred] = useState(false);
+  const [tDate, setTDate] = useState(today());
+  const [tGrant, setTGrant] = useState("");
+  const [transfer, setTransfer] = useState<{
+    items: { grant_id: string; grant_code: string; stock: string; deferred: string; amount: string }[];
+    lines: PreviewRow[];
+    total: string;
+  } | null>(null);
   const { busy, error, info, run, setError } = useAction();
   const editable = can(role, POSTING_ROLES);
   const base = `/organizations/${orgId}/stock-distributions`;
@@ -50,6 +57,20 @@ export function StockDistributionScreen() {
       await api(`${base}/${d.document_id}`, { method: "DELETE" });
       load();
       return "Distribuirea a fost anulată.";
+    });
+
+  const tBody = () => ({ as_of: tDate, grant_id: tGrant || null });
+  const showTransfer = () =>
+    run(async () => {
+      setTransfer(null);
+      setTransfer(await api(`/organizations/${orgId}/stock-transfers/preview`, { method: "POST", body: tBody() }));
+    });
+  const doTransfer = () =>
+    run(async () => {
+      await api(`/organizations/${orgId}/stock-transfers`, { method: "POST", body: tBody() });
+      setTransfer(null);
+      load();
+      return "Stocul nefolosit a fost trecut la venituri anticipate (535).";
     });
 
   return (
@@ -142,6 +163,55 @@ export function StockDistributionScreen() {
                     <td>{p.credit_account}</td>
                     <td className="num">{money(p.amount)}</td>
                     <td className="muted">{p.source_ref}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+      {editable && (
+        <section>
+          <h2>Transferul stocului nefolosit pe 535 (la închiderea proiectului / perioadei)</h2>
+          <div className="form">
+            <label htmlFor="st-date">La data</label>
+            <input id="st-date" type="date" value={tDate} onChange={(e) => setTDate(e.target.value)} />
+            <label htmlFor="st-grant">Grantul</label>
+            <select id="st-grant" value={tGrant} onChange={(e) => setTGrant(e.target.value)}>
+              <option value="">— toate granturile —</option>
+              {catalogs.grants.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.code} {g.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="hint">Stocul rămas pe 211 și netrecut încă la 535: Dt 537 — Kt 535 (politica „doar partea nefolosită”).</div>
+          <div className="bar">
+            <button className="b" onClick={showTransfer} disabled={busy}>
+              Previzualizare
+            </button>
+            <button className="b primary" onClick={doTransfer} disabled={busy || !transfer}>
+              Transferă
+            </button>
+          </div>
+          {transfer && (
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Grant</th>
+                  <th className="num">Stoc 211</th>
+                  <th className="num">Deja pe 535</th>
+                  <th className="num">De transferat</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transfer.items.map((i) => (
+                  <tr key={i.grant_id}>
+                    <td>{i.grant_code}</td>
+                    <td className="num">{money(i.stock)}</td>
+                    <td className="num">{money(i.deferred)}</td>
+                    <td className="num">{money(i.amount)}</td>
                   </tr>
                 ))}
               </tbody>

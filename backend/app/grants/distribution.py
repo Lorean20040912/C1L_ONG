@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.audit.service import write_audit
@@ -31,6 +31,8 @@ from app.posting.rules import GeneratedLine, OperationInput, build_lines
 router = APIRouter(prefix="/organizations/{organization_id}", tags=["granturi avansat"])
 
 PREFIX = "DS-"  # numărul documentului de distribuire
+TRANSFER_PREFIX = "TS-"  # transferul stocului nefolosit pe 535
+PREFIXES = (PREFIX, TRANSFER_PREFIX)
 
 
 class DistributionIn(BaseModel):
@@ -156,7 +158,7 @@ def list_distributions(ctx: OrgContext = Depends(get_org_context), db: Session =
         select(Document)
         .where(
             Document.organization_id == ctx.organization_id,
-            Document.doc_number.like(f"{PREFIX}%"),
+            or_(*(Document.doc_number.like(f"{p}%") for p in PREFIXES)),
             Document.deletion_mark.is_not(True),
         )
         .order_by(Document.doc_date.desc(), Document.doc_number.desc())
@@ -189,7 +191,7 @@ def delete_distribution(
         .where(
             Document.id == document_id,
             Document.organization_id == ctx.organization_id,
-            Document.doc_number.like(f"{PREFIX}%"),
+            or_(*(Document.doc_number.like(f"{p}%") for p in PREFIXES)),
         )
         .with_for_update()
     )
@@ -207,3 +209,134 @@ def delete_distribution(
         old_values={"doc_number": doc.doc_number},
     )  # fmt: skip
     db.commit()
+
+
+# ───────────── transferul stocului nefolosit pe 535 (docs/11 §2.3) ─────────────
+
+
+class TransferIn(BaseModel):
+    as_of: date  # data închiderii proiectului / perioadei
+    grant_id: uuid.UUID | None = None  # fără grant: toate granturile cu destinație specială
+
+
+class TransferItemOut(BaseModel):
+    grant_id: uuid.UUID
+    grant_code: str
+    stock: Decimal  # soldul 211 al grantului
+    deferred: Decimal  # deja pe 535
+    amount: Decimal  # de transferat: Dt 537 — Kt 535
+
+
+class TransferPreviewOut(BaseModel):
+    items: list[TransferItemOut]
+    lines: list[PreviewLine]
+    total: Decimal
+
+
+def _deferred_balance(
+    db: Session, organization_id: uuid.UUID, grant_id: uuid.UUID, on_date: date, exclude_document: uuid.UUID | None
+) -> Decimal:
+    account = db.scalar(select(Account.id).where(Account.organization_id == organization_id, Account.code == "535"))
+    if account is None:
+        raise PostingError("Contul 535 lipsește din planul de conturi")
+    base = (EntryLine.organization_id == organization_id, EntryLine.grant_id == grant_id, EntryLine.entry_date <= on_date)
+    if exclude_document is not None:
+        base = (*base, EntryLine.document_id != exclude_document)
+    credit = db.scalar(select(func.coalesce(func.sum(EntryLine.amount), 0)).where(*base, EntryLine.credit_account_id == account))
+    debit = db.scalar(select(func.coalesce(func.sum(EntryLine.amount), 0)).where(*base, EntryLine.debit_account_id == account))
+    return credit - debit
+
+
+def _transfer_plan(
+    db: Session, ctx: OrgContext, body: TransferIn, exclude_document: uuid.UUID | None = None
+) -> tuple[list[TransferItemOut], list[GeneratedLine]]:
+    """Stocul grantului pe 211 minus ce e deja pe 535 = partea nefolosită (politica `unused_only`)."""
+    if body.grant_id:
+        grants = [_grant(db, ctx, body.grant_id)]
+    else:
+        from app.grants.models import Grant
+
+        grants = list(db.scalars(select(Grant).where(Grant.organization_id == ctx.organization_id).order_by(Grant.code)))
+    items: list[TransferItemOut] = []
+    ops: list[OperationInput] = []
+    for grant in grants:
+        if funding_of(grant) != "special_purpose":
+            if body.grant_id:
+                raise PostingError("Transferul pe 535 se face doar pentru granturi cu destinație specială")
+            continue
+        stock = _stock_balance(db, ctx.organization_id, grant.id, body.as_of, exclude_document)
+        deferred = _deferred_balance(db, ctx.organization_id, grant.id, body.as_of, exclude_document)
+        amount = stock - deferred
+        if amount <= 0:
+            continue
+        items.append(TransferItemOut(grant_id=grant.id, grant_code=grant.code, stock=stock, deferred=deferred, amount=amount))
+        ops.append(
+            OperationInput(
+                operation="deferred_transfer",
+                amount=amount,
+                grant_id=grant.id,
+                attributes={"funding": "special_purpose"},
+                description=f"Stoc nefolosit {grant.code} trecut la venituri anticipate",
+            )
+        )
+    if not ops:
+        raise PostingError("Nu există stoc nefolosit de transferat pe 535 (tot stocul a fost distribuit sau este deja pe 535)")
+    generated = build_lines(
+        db, organization_id=ctx.organization_id, document_type="stock_distribution", doc_date=body.as_of, operations=ops
+    )
+    return items, generated
+
+
+@router.post("/stock-transfers/preview", response_model=TransferPreviewOut)
+def preview_transfer(
+    body: TransferIn, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+) -> TransferPreviewOut:
+    try:
+        items, generated = _transfer_plan(db, ctx, body)
+        return TransferPreviewOut(
+            items=items, lines=preview_out(db, generated), total=sum((i.amount for i in items), Decimal(0))
+        )
+    except PostingError as exc:
+        raise http_error(exc) from exc
+
+
+@router.post("/stock-transfers", response_model=DistributionOut, status_code=status.HTTP_201_CREATED)
+def create_transfer(
+    body: TransferIn, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)
+) -> DistributionOut:
+    ctx.require(POSTING_ROLES)
+    if body.grant_id:
+        _grant(db, ctx, body.grant_id, lock=True)
+    try:
+        items, generated = _transfer_plan(db, ctx, body)
+        total = sum((i.amount for i in items), Decimal(0))
+        numbers = db.scalars(
+            select(Document.doc_number).where(
+                Document.organization_id == ctx.organization_id,
+                Document.doc_number.like(f"{TRANSFER_PREFIX}{body.as_of.year}-%"),
+            )
+        ).all()
+        last = max((int(n.rsplit("-", 1)[1]) for n in numbers if n.rsplit("-", 1)[1].isdigit()), default=0)
+        doc = Document(
+            organization_id=ctx.organization_id, type=DocumentType.other,
+            doc_number=f"{TRANSFER_PREFIX}{body.as_of.year}-{last + 1:03d}", doc_date=body.as_of,
+            total_amount=total, uploaded_by=ctx.user.id,
+        )  # fmt: skip
+        db.add(doc)
+        db.flush()
+        post_document(
+            db, organization_id=ctx.organization_id, document_id=doc.id, lines=[g.line for g in generated],
+            user_id=ctx.user.id, rule_refs=sorted({f"{g.rule.id} ({g.rule.source_ref})" for g in generated}),
+        )  # fmt: skip
+    except PostingError as exc:
+        db.rollback()
+        raise http_error(exc) from exc
+    write_audit(
+        db, action="create", entity="stock_transfers", entity_id=doc.id, organization_id=ctx.organization_id,
+        user_id=ctx.user.id, new_values={"as_of": body.as_of.isoformat(), "total": str(total)},
+    )  # fmt: skip
+    db.commit()
+    return DistributionOut(
+        document_id=doc.id, doc_number=doc.doc_number, doc_date=doc.doc_date, grant_id=body.grant_id,
+        amount=total, is_posted=True, description="Transfer stoc nefolosit pe 535",
+    )  # fmt: skip
