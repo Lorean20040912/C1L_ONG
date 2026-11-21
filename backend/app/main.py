@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.members_router import router as members_router
 from app.auth.router import router as auth_router
+from app.bank.router import router as bank_router
 from app.catalogs.router import router as catalogs_router
 from app.core.config import get_settings
 from app.core.db import get_db
@@ -56,6 +57,7 @@ app.include_router(individual_payments_router)
 app.include_router(account_reports_router)
 app.include_router(regulated_router)
 app.include_router(regulated_settings_router)
+app.include_router(bank_router)
 
 
 @app.get("/health", tags=["sistem"])

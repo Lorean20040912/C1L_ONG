@@ -119,3 +119,26 @@ export async function apiDownload(path: string, fileName: string): Promise<void>
 }
 
 export const download = apiDownload;
+
+/** Descarcă un fișier (cu jetonul de acces); numele vine din Content-Disposition. */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  const send = () => {
+    const token = read(ACCESS);
+    return fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  };
+  let res = await send();
+  if (res.status === 401) {
+    refreshing ??= refreshTokens().finally(() => (refreshing = null));
+    if (await refreshing) res = await send();
+  }
+  if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+  const match = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") ?? "");
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = match?.[1] ?? fallbackName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}

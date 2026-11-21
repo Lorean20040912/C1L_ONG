@@ -11,3 +11,4 @@ redis==5.2.1
 rq==2.0.0
 cryptography==44.0.0
 openpyxl==3.1.5
+dbfread==2.0.7

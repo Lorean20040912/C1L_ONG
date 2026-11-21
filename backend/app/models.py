@@ -1,7 +1,7 @@
 """Importă toate modelele, ca SQLAlchemy și Alembic să vadă întreaga schemă."""
 
 from app.audit.models import AuditLog
-from app.bank.models import BankAccount
+from app.bank.models import BankAccount, BankFormat, BankImport, BankTransaction, ExchangeRate, PaymentBatch
 from app.auth.models import OrganizationMember, User
 from app.catalogs.models import Account, AccountAnalytics, Counterparty, Department
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
@@ -37,6 +37,9 @@ __all__ = [
     "AccountTurnover",
     "AuditLog",
     "BankAccount",
+    "BankFormat",
+    "BankImport",
+    "BankTransaction",
     "BudgetLine",
     "CostItem",
     "Contract",
@@ -44,6 +47,7 @@ __all__ = [
     "Counterparty",
     "Department",
     "Document",
+    "ExchangeRate",
     "EntryLine",
     "EntryLineAnalytics",
     "ExemptionClaim",
@@ -55,6 +59,7 @@ __all__ = [
     "MonthCloseRun",
     "Organization",
     "OrganizationMember",
+    "PaymentBatch",
     "PaymentOrder",
     "PaymentOrderLine",
     "PayrollEntry",

@@ -111,7 +111,7 @@ class PaymentOrder(Base):
     is_urgent: Mapped[bool | None] = mapped_column(Boolean, server_default=text("false"))
     kind: Mapped[str | None] = mapped_column(String, server_default=text("'regular'"))
     tax_kind: Mapped[str | None] = mapped_column(String)
-    batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID)  # FK: payment_batches (modulul bank)
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("payment_batches.id"))
     bank_status: Mapped[str | None] = mapped_column(String, server_default=text("'draft'"))
 
     lines: Mapped[list["PaymentOrderLine"]] = relationship(back_populates="payment_order", cascade="all, delete-orphan")

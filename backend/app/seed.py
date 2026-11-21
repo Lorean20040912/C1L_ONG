@@ -125,15 +125,11 @@ def run() -> None:
         ]:
             db.add(BudgetLine(grant_id=g.id, code=code, name=name, planned_amount=Decimal(planned)))
         db.add(Counterparty(organization_id=org.id, name="„Furnizor Exemplu” SRL", idno="1000000000002"))
-        db.add(
-            BankAccount(
-                organization_id=org.id,
-                iban_enc="MD00XX000000000000000001",
-                bank_name="Banca demonstrativă",
-                currency="MDL",
-                account_id=accounts["242"].id,
-            )
+        bank = BankAccount(
+            organization_id=org.id, bank_name="Banca demonstrativă", currency="MDL", account_id=accounts["242"].id
         )
+        bank.iban = "MD00XX000000000000000001"
+        db.add(bank)
         db.commit()
         print(f"seed: creat {settings.demo_email} cu baza „{ws.name}”")
 

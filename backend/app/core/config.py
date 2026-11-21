@@ -20,6 +20,8 @@ class Settings(BaseSettings):
 
     # cheia Fernet pentru IDNP (app/core/crypto.py); goală = derivată din jwt_secret
     personal_data_key: str | None = None
+    # cheia de criptare a datelor sensibile (IBAN-urile conturilor bancare); orice șir lung și aleator
+    encryption_key: str = "schimba-cheia-de-criptare-in-env"
 
     # utilizatorul demonstrativ creat de `python -m app.seed` (doar pentru dezvoltare)
     demo_email: str | None = None

@@ -159,7 +159,7 @@ class BankAccountOut(BaseModel):
 def _bank_out(b: BankAccount) -> BankAccountOut:
     return BankAccountOut(
         id=b.id,
-        iban=b.iban_enc,
+        iban=b.iban,
         bank_name=b.bank_name,
         currency=b.currency,
         account_id=b.account_id,
@@ -197,13 +197,13 @@ def create_bank_account(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Grantul nu aparține organizației")
     bank = BankAccount(
         organization_id=ctx.organization_id,
-        iban_enc=body.iban.replace(" ", "").upper(),
         bank_name=body.bank_name,
         bank_code=body.bank_code,
         currency=body.currency.upper(),
         account_id=body.account_id,
         grant_id=body.grant_id,
     )
+    bank.iban = body.iban
     db.add(bank)
     db.flush()
     write_audit(
