@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.catalogs.models import Department
 from app.core import crypto
+from app.core import fisc_xml as fx
 from app.core.enums import ContractType
 from app.documents.models import Document
 from app.month_close.depreciation import month_bounds
@@ -225,56 +226,114 @@ def _checks(report: Ipc21) -> None:
             report.errors.append(f"{n.full_name}: tariful CNAS {n.tariff}% nu are rând în totaluri")
 
 
-def _money(value: Decimal) -> str:
-    return f"{value:.2f}"
+def _money(value: Decimal, *, empty_zero: bool = False) -> str:
+    return fx.money(value, empty_zero=empty_zero)
+
+
+# Tabelul 1 în ordinea exportului oficial: (rând, coloane). Rândurile 12 și 23 rămân
+# goale când nu au sume; rândul 61 are coloanele în ordinea 6, 5, 4.
+TABLE1_CELLS = [
+    ("11", (4, 5, 6)), ("12", (4, 5, 6)), ("21", (4, 5)), ("22", (4, 5)), ("23", (4, 5)), ("31", (4, 5)),
+    ("32", (4,)), ("41", (4, 5)), ("42", (4, 5)), ("43", (4, 5)), ("44", (4, 5)), ("45", (4, 5)),
+    ("46", (4, 5)), ("47", (4, 5)), ("48", (4, 5)), ("49", (4, 5)), ("491", (4, 5)), ("51", (4, 5)),
+    ("52", (4, 5)), ("53", (4, 5)), ("54", (4, 5)), ("55", (4, 5)), ("56", (4, 5)), ("61", (6, 5, 4)),
+]  # fmt: skip
+EMPTY_WHEN_ZERO = {"12", "23"}
+# Tabelul 2, totaluri pe tarife: (rând, coloane), în ordinea exportului oficial
+TABLE2_CELLS = [
+    ("r11a", (9, 11)), ("r11b", (9, 11)), ("r12a", (9, 11)), ("r12b", (9, 11)), ("r13", (9, 11)),
+    ("r14a", (9, 11)), ("r14b", (11,)), ("r15", (11,)), ("r16", (11,)), ("r17", (9, 11)),
+    ("r2", (10,)), ("r21", (10,)), ("r22", (10,)), ("r23", (10,)), ("r24", (10,)),
+    ("r3", (10,)), ("r31", (10,)), ("r32", (10,)), ("r33", (10,)), ("r34", (10,)),
+]  # fmt: skip
+TABLE2_FILLED = {"r11a", "r11b", "r12a", "r12b", "r14a", "r14b", "r15", "r16"}  # restul rămâne gol
+
+
+def _tariff_text(tariff: Decimal) -> str:
+    return f"{tariff.normalize():f}%"
 
 
 def to_xml(report: Ipc21) -> bytes:
-    """Fișierul pentru e-Cabinet SFS, cu elementele din docs/05 §1 (structura simplificată;
-    se validează cu schema XSD a versiunii formularului înainte de depunere)."""
+    """Fișierul pentru e-Cabinet SFS, în structura exportului oficial IPC21 (docs/exemple-fisc/ipc21.xml).
+    Câmpurile pe care aplicația nu le ține (e-mail, telefon, titlurile clasificatoarelor) rămân goale."""
     org = report.organization
-    root = ET.Element("dec", {"TypeName": "IPC21"})
-    fisc = ET.SubElement(root, "fiscCod")
-    ET.SubElement(fisc, "fiscal").text = org.idno or ""
-    ET.SubElement(fisc, "name").text = org.name
-    ET.SubElement(fisc, "cuatm").text = org.cuatm or ""
-    ET.SubElement(fisc, "caem").text = org.caem or ""
-    ET.SubElement(fisc, "cnas").text = org.cnas_code or ""
-    period = ET.SubElement(root, "peroidnalog")
-    ET.SubElement(period, "datefisc").text = f"L/{report.month:02d}/{report.year}"
-    table1 = ET.SubElement(root, "table1")
-    row = ET.SubElement(table1, "row")
-    for x in [*report.table1, report.total]:
-        if x.c4 or x.c5 or x.c6 or x.row == "61":
-            ET.SubElement(row, f"r{x.row}c4").text = _money(x.c4)
-            ET.SubElement(row, f"r{x.row}c5").text = _money(x.c5)
-            if x.row in ("11", "12", "61"):
-                ET.SubElement(row, f"r{x.row}c6").text = _money(x.c6)
-    ET.SubElement(root, "summContr").text = _money(report.control_sum)
-    dyn = ET.SubElement(root, "dinamicTable")
-    for a in report.annex:
-        r = ET.SubElement(dyn, "row")
-        for key, value in (("c1", a["no"]), ("c2", a["cuatm"]), ("c3", a["c3"]), ("c4", a["c4"]), ("c5", a["c5"])):
-            ET.SubElement(r, key).text = _money(value) if isinstance(value, Decimal) else str(value)
-    dyn2 = ET.SubElement(root, "dinamicTable2")
-    for n in report.nominal:
-        r = ET.SubElement(dyn2, "row")
-        values = [
-            ("c1", str(n.no)), ("c2", n.full_name), ("c3", n.idnp), ("c4", n.cpas or ""),
-            ("c5", n.period_start.strftime("%d.%m.%Y") if n.period_start else ""),
-            ("c6", n.period_end.strftime("%d.%m.%Y") if n.period_end else ""),
-            ("c7", n.insured_category or ""), ("c8", _money(n.tariff)), ("c81", n.function_code or ""),
-            ("c9", _money(n.base)), ("c10", _money(n.sick_benefit)), ("c11", _money(n.contribution)),
-        ]  # fmt: skip
-        for key, value in values:
-            ET.SubElement(r, key).text = value
-    total = ET.SubElement(dyn2, "total")
-    ET.SubElement(total, "tot2c9").text = _money(sum((n.base for n in report.nominal), ZERO))
-    ET.SubElement(total, "tot2c10").text = _money(sum((n.sick_benefit for n in report.nominal), ZERO))
-    ET.SubElement(total, "tot2c11").text = _money(sum((n.contribution for n in report.nominal), ZERO))
-    table2 = ET.SubElement(root, "table2")
-    trow = ET.SubElement(table2, "row")
-    for t in report.tariffs:
-        ET.SubElement(trow, f"{t['row']}c9").text = _money(t["c9"])
-        ET.SubElement(trow, f"{t['row']}c11").text = _money(t["c11"])
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    root = ET.Element("dec", {"TypeName": "ipc21"})
+    fisc = fx.sub(root, "fiscCod")
+    fx.sub(fisc, "fiscal", org.idno)
+    fx.sub(fisc, "name", org.name)
+    fx.sub(fisc, "cuatm", org.cuatm, title="")
+    fx.sub(fisc, "fisc", org.sfs_office, title="")
+    fx.sub(fisc, "caem", org.caem, title="")
+    fx.sub(fisc, "email")
+    fx.sub(fisc, "telefon")
+    fx.sub(fisc, "cnas", org.cnas_code)
+    fx.sub(fx.sub(root, "peroidnalog"), "datefisc", fx.month_period(report.year, report.month))
+    director = fx.sub(root, "director")
+    fx.sub(director, "director", org.director_name)
+    fx.sub(director, "contabil", org.chief_accountant_name)
+
+    table1 = fx.sub(root, "table1")
+    ds = fx.sub(table1, "ds")
+    for tag, value in (("flag", 0), ("flag1", 1), ("flag2", 0)):  # 1 = declarația primară
+        fx.sub(ds, tag, value)
+    fx.sub(fx.sub(table1, "it"), "flag1", 0)
+    cf = fx.sub(table1, "cf")
+    fx.sub(cf, "flag1", 0)
+    fx.sub(cf, "flag2", 0)
+    by_row = {x.row: x for x in [*report.table1, report.total]}
+    row = fx.sub(table1, "row")
+    for number, columns in TABLE1_CELLS:
+        x = by_row.get(number)
+        for column in columns:
+            value = getattr(x, f"c{column}") if x else Decimal(0)
+            fx.sub(row, f"r{number}c{column}", _money(value, empty_zero=number in EMPTY_WHEN_ZERO))
+    fx.sub(root, "summContr", _money(report.control_sum))
+
+    dyn = fx.sub(root, "dinamicTable")
+    for line, a in enumerate(report.annex or [None], start=1):
+        r = fx.sub(dyn, "row", line=str(line))
+        fx.sub(r, "c1", a["no"] if a else line)
+        fx.sub(r, "c2", a["cuatm"] if a else None, title="")
+        for key in ("c3", "c4", "c5"):
+            fx.sub(r, key, _money(a[key]) if a else None)
+    total = fx.sub(dyn, "total")
+    for n in (3, 4, 5):
+        fx.sub(total, f"tot1c{n}", _money(sum((a[f"c{n}"] for a in report.annex), ZERO)) if report.annex else None)
+
+    table11 = fx.sub(root, "table11")
+    for n in (1, 2, 3):
+        r = fx.sub(table11, f"row{n}")
+        for c in (3, 4, 5, 6, 7):
+            fx.sub(r, f"c{c}")
+
+    dyn2 = fx.sub(root, "dinamicTable2")
+    for line, n in enumerate(report.nominal or [None], start=1):
+        r = fx.sub(dyn2, "row", line=str(line))
+        fx.sub(r, "c1", n.no if n else line)
+        fx.sub(r, "c2", n.full_name if n else None)
+        fx.sub(r, "c3", n.idnp if n else None)
+        fx.sub(r, "c4", n.cpas if n else None)
+        fx.sub(r, "c5", fx.date_text(n.period_start) if n else None)
+        fx.sub(r, "c6", fx.date_text(n.period_end) if n else None)
+        fx.sub(r, "c7", n.insured_category if n else None)
+        fx.sub(r, "c71", _tariff_text(n.tariff) if n else None)
+        fx.sub(r, "c8", n.function_code if n else None)
+        fx.sub(r, "c81", title="")
+        fx.sub(r, "c9", _money(n.base) if n else None)
+        fx.sub(r, "c10", _money(n.sick_benefit, empty_zero=True) if n else None)
+        fx.sub(r, "c11", _money(n.contribution) if n else None)
+    total2 = fx.sub(dyn2, "total")
+    fx.sub(total2, "tot2c9", _money(sum((n.base for n in report.nominal), ZERO)))
+    fx.sub(total2, "tot2c10", _money(sum((n.sick_benefit for n in report.nominal), ZERO)))
+    fx.sub(total2, "tot2c11", _money(sum((n.contribution for n in report.nominal), ZERO)))
+
+    by_tariff = {t["row"]: t for t in report.tariffs}
+    trow = fx.sub(fx.sub(root, "table2"), "row")
+    for name, columns in TABLE2_CELLS:
+        t = by_tariff.get(name)
+        for column in columns:
+            value = None
+            if name in TABLE2_FILLED or t:
+                value = _money(t[f"c{column}"] if t else ZERO)
+            fx.sub(trow, f"{name}c{column}", value)
+    return fx.serialize(root)

@@ -7,6 +7,7 @@ scutirea personală 29 700 lei/an = 2 475 lei/lună, 9 900 lei/an pe persoană �
 """
 
 import uuid
+from xml.etree import ElementTree as ET
 from datetime import date
 from decimal import Decimal
 
@@ -35,6 +36,7 @@ from app.posting.engine import PostingError, turnover_differences
 from app.posting.models import AccountingPolicy, EntryLine
 from app.taxes.models import TaxRate
 from tests.conftest import make_accounts, make_org, make_user
+from tests.xml_structure import assert_format, assert_same_structure
 
 Y, M = 2026, 11
 ACCOUNTS = ("234.4", "242", "531", "533", "534", "537", "544", "616", "716", "717", "718")
@@ -400,6 +402,16 @@ def test_ipc21_este_suma_calculelor(db, ong):
     assert r.errors == []
     xml = ipc21.to_xml(r).decode()
     assert "<r11c5>795.00</r11c5>" in xml and "<r41c4>1000.00</r41c4>" in xml and "2001234567890" in xml
+    # structura și formatul exportului oficial (docs/exemple-fisc/ipc21.xml)
+    assert_format(xml.encode(), "ipc21.xml")
+    assert_same_structure(xml.encode(), "ipc21.xml")
+    root = ET.fromstring(xml)
+    assert root.find("peroidnalog/datefisc").text == "L/11/2026"
+    assert root.find("table1/row/r61c4").text == format(r.total.c4, ".2f")
+    assert [c.tag for c in root.find("table1/row")][-3:] == ["r61c6", "r61c5", "r61c4"]
+    nominal = root.find("dinamicTable2/row")
+    assert nominal.find("c71").text == "24%" and nominal.find("c5").text == "01.11.2026"
+    assert root.find("table2/row/r11bc11").text == "3600.00"
 
 
 def test_ipc21_semnaleaza_cpas_lipsa(db, ong):
@@ -450,3 +462,9 @@ def test_cotele_confirmate_nu_mai_sunt_marcate_de_verificat(db):
     }.items():
         assert rows[key].value == Decimal(value)
         assert "de verificat" not in rows[key].legal_basis
+
+
+def test_ipc21_gol_are_aceeasi_structura(db, ong):
+    _, org, *_ = ong
+    xml = ipc21.to_xml(ipc21.build(db, org.id, Y, M))
+    assert_same_structure(xml, "ipc21.xml")
