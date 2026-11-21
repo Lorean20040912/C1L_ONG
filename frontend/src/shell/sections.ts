@@ -78,7 +78,7 @@ export const SECTIONS: Section[] = [
     title: "Rapoarte",
     groups: {
       Standard: ["Balanța de verificare (OSV)", "Fișa contului", "Analiza contului", "Cartea mare", "Registru-jurnal (partidă simplă)"],
-      Fiscale: ["IPC21", "ONG17", "TVA"],
+      Fiscale: ["IPC21", "ONG17", "RSF2", "TVA"],
       Statistice: ["5-CON"],
       Setări: ["Date pentru rapoarte"],
     },

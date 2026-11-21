@@ -40,6 +40,7 @@ import { PersonsScreen } from "../screens/payroll/PersonsScreen";
 import { AccountReports } from "../screens/reports/AccountReports";
 import { CostItemsScreen } from "../screens/reports/CostItemsScreen";
 import { RegulatedReport } from "../screens/reports/RegulatedReport";
+import { Rsf2Screen } from "../screens/reports/Rsf2Screen";
 import { ReportingDataScreen } from "../screens/reports/ReportingDataScreen";
 import { EfacturaScreen } from "../screens/import/EfacturaScreen";
 import { OnecImportScreen } from "../screens/import/OnecImportScreen";
@@ -288,6 +289,8 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <Ipc21Screen />;
     case "ong17":
       return <RegulatedReport code="ONG17" periodFrom={p.periodFrom} />;
+    case "rsf2":
+      return <Rsf2Screen />;
     case "con5":
       return <RegulatedReport code="5-CON" periodFrom={p.periodFrom} />;
     case "account-card":

@@ -31,6 +31,7 @@ export type TabKind =
   | "individual-payments"
   | "ipc21"
   | "ong17"
+  | "rsf2"
   | "con5"
   | "account-card"
   | "account-analysis"
@@ -109,6 +110,7 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Plăți către persoane fizice": "individual-payments",
   IPC21: "ipc21",
   ONG17: "ong17",
+  RSF2: "rsf2",
   "5-CON": "con5",
   "Fișa contului": "account-card",
   "Analiza contului": "account-analysis",
