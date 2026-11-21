@@ -43,7 +43,7 @@ Commit-uri mici, în română, autor `Lorean Mandrescu`, fără mențiuni AI. Ra
 
 ## Stadiul
 
-Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flux ca în `docker compose`): autentificare, bază nouă (expert), politică contabilă, factură + plată, închiderea lunii (amortizare, salarii, diferențe de curs, venituri, `account_closing`, verificări), transfer pe 535, închiderea perioadei, ONG17 (Excel), IPC21 (JSON și XML), import extras MAIB + înregistrare. Un singur head Alembic (`fix2_0001`); `alembic upgrade head` de la zero și `alembic check` sunt curate.
+Verificat cap-coadă prin API (uvicorn + PostgreSQL + Redis locale; același flux ca în `docker compose`): autentificare, bază nouă (expert), politică contabilă, factură + plată, închiderea lunii (amortizare, salarii, diferențe de curs, venituri, `account_closing`, verificări), transfer pe 535, închiderea perioadei, ONG17 (Excel), IPC21 (JSON și XML), import extras MAIB + înregistrare. Un singur head Alembic (`mrg_0009`); `alembic upgrade head` de la zero și `alembic check` sunt curate.
 
 | Modul | Stare |
 |-------|-------|
