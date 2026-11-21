@@ -60,6 +60,7 @@ export const SECTIONS: Section[] = [
       Granturi: ["Proiecte / granturi", "Linii de buget", "Donatori"],
       Documente: ["Finanțare primită", "Repartizarea cheltuielilor"],
       Rapoarte: ["Execuția bugetului", "Pachet pentru donator", "5-CON", "ONG17"],
+      Setări: ["Articole de cheltuieli", "Date pentru rapoarte"],
     },
   },
   {
@@ -79,6 +80,7 @@ export const SECTIONS: Section[] = [
       Standard: ["Balanța de verificare (OSV)", "Fișa contului", "Analiza contului", "Cartea mare"],
       Fiscale: ["IPC21", "ONG17", "TVA"],
       Statistice: ["5-CON"],
+      Setări: ["Date pentru rapoarte"],
     },
   },
   {

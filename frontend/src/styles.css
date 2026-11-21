@@ -660,3 +660,7 @@ code {
     grid-template-columns: 1fr;
   }
 }
+.soon {
+  color: #b9770e;
+  font-weight: 600;
+}

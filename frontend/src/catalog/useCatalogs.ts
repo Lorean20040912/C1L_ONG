@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { Account, BankAccount, Counterparty, Grant } from "../api/types";
+import type { Account, BankAccount, CostItem, Counterparty, Grant } from "../api/types";
 
 export interface Catalogs {
   accounts: Account[];
   counterparties: Counterparty[];
   grants: Grant[];
   bankAccounts: BankAccount[];
+  costItems: CostItem[];
 }
 
-const EMPTY: Catalogs = { accounts: [], counterparties: [], grants: [], bankAccounts: [] };
+const EMPTY: Catalogs = { accounts: [], counterparties: [], grants: [], bankAccounts: [], costItems: [] };
 
 // cataloagele organizației, încărcate o dată pe organizație și partajate între file
 const cache = new Map<string, Promise<Catalogs>>();
@@ -21,7 +22,8 @@ function load(orgId: string): Promise<Catalogs> {
     api<Counterparty[]>(`${base}/counterparties`),
     api<Grant[]>(`${base}/grants`),
     api<BankAccount[]>(`${base}/bank-accounts`),
-  ]).then(([accounts, counterparties, grants, bankAccounts]) => ({ accounts, counterparties, grants, bankAccounts }));
+    api<CostItem[]>(`${base}/cost-items`),
+  ]).then(([accounts, counterparties, grants, bankAccounts, costItems]) => ({ accounts, counterparties, grants, bankAccounts, costItems }));
 }
 
 const CHANGED = "contahub:catalogs-changed";

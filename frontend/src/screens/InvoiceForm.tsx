@@ -16,6 +16,7 @@ interface Row {
   unit_price: string;
   amount: string;
   budget_line_id: string;
+  cost_item_id: string;
   account_id: string;
   put_into_use: boolean;
   fixed_asset_id?: string | null;
@@ -30,6 +31,7 @@ const emptyRow = (): Row => ({
   unit_price: "",
   amount: "",
   budget_line_id: "",
+  cost_item_id: "",
   account_id: "",
   put_into_use: true,
 });
@@ -42,6 +44,7 @@ const toRow = (l: InvoiceLine): Row => ({
   unit_price: l.unit_price ? String(Number(l.unit_price)) : "",
   amount: money(l.amount),
   budget_line_id: l.budget_line_id ?? "",
+  cost_item_id: l.cost_item_id ?? "",
   account_id: l.account_id ?? "",
   put_into_use: l.put_into_use,
   fixed_asset_id: l.fixed_asset_id,
@@ -143,6 +146,7 @@ export function InvoiceForm({ tabId, documentId: initialId }: { tabId: string; d
           unit_price: r.unit_price ? r.unit_price.replace(",", ".") : null,
           amount,
           budget_line_id: r.budget_line_id || null,
+          cost_item_id: r.cost_item_id || null,
           account_id: r.account_id || null,
           put_into_use: r.put_into_use,
         };
@@ -332,6 +336,7 @@ export function InvoiceForm({ tabId, documentId: initialId }: { tabId: string; d
               <th className="num">Preț</th>
               <th className="num">Suma</th>
               <th>Linie de buget</th>
+              <th title="Articolul de cheltuieli: rândul 5-CON">Articol</th>
               <th>Cont</th>
               <th>În exploatare</th>
               <th />
@@ -382,6 +387,16 @@ export function InvoiceForm({ tabId, documentId: initialId }: { tabId: string; d
                     disabled={ro}
                     onChange={(v) => setRow(r.key, { budget_line_id: v })}
                   />
+                </td>
+                <td>
+                  <select aria-label={`Articol de cheltuieli rând ${i + 1}`} value={r.cost_item_id} disabled={ro} onChange={(e) => setRow(r.key, { cost_item_id: e.target.value })}>
+                    <option value="">{r.budget_line_id ? "din linia de buget" : "—"}</option>
+                    {catalogs.costItems.map((c) => (
+                      <option key={c.id} value={c.id} title={c.con5_article ? `5-CON ${c.con5_article}` : ""}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td>
                   <select aria-label={`Cont rând ${i + 1}`} value={r.account_id} disabled={ro} onChange={(e) => setRow(r.key, { account_id: e.target.value })}>

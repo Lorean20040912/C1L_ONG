@@ -1,9 +1,32 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import { ENTITY_LABELS, type BudgetLineExecution, type OrganizationBrief } from "../api/types";
+import { ENTITY_LABELS, type BudgetLineExecution, type CalendarItem, type OrganizationBrief } from "../api/types";
 import { onDocumentsChanged } from "../lib/events";
+import { day } from "../lib/format";
 import { Meter, percent } from "../screens/BudgetExecution";
-import { useShell } from "./tabs";
+import { useShell, type Tab } from "./tabs";
+
+const STATUS_CLASS: Record<CalendarItem["status"], string> = {
+  overdue: "late",
+  due_soon: "soon",
+  submitted: "ok",
+  upcoming: "muted",
+};
+
+function periodLabel(i: CalendarItem): string {
+  const [y, m] = i.period_from.split("-").map(Number);
+  if (i.code === "ONG17") return `anul ${y}`;
+  if (i.code === "5-CON") return `trim. ${Math.floor((m - 1) / 3) + 1} ${y}`;
+  return `${String(m).padStart(2, "0")}.${y}`;
+}
+
+function reportTab(i: CalendarItem): Tab {
+  if (i.code === "ONG17" || i.code === "5-CON") {
+    const kind = i.code === "ONG17" ? "ong17" : "con5";
+    return { id: `${kind}:${i.period_from}`, title: `${i.code} ${periodLabel(i)}`, kind, params: { periodFrom: i.period_from } };
+  }
+  return { id: `screen:${i.code}`, title: i.code, kind: "placeholder" };
+}
 
 interface GrantSummary {
   code: string;
@@ -27,6 +50,7 @@ function summarize(rows: BudgetLineExecution[]): GrantSummary[] {
 export function HomeScreen({ org }: { org: OrganizationBrief | undefined }) {
   const { orgId, openTab } = useShell();
   const [budgets, setBudgets] = useState<GrantSummary[] | null>(null);
+  const [calendar, setCalendar] = useState<CalendarItem[] | null>(null);
   const today = new Date().toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long" });
 
   useEffect(() => {
@@ -36,6 +60,12 @@ export function HomeScreen({ org }: { org: OrganizationBrief | undefined }) {
         .catch(() => setBudgets([]));
     load();
     return onDocumentsChanged("invoices", load);
+  }, [orgId]);
+
+  useEffect(() => {
+    api<CalendarItem[]>(`/organizations/${orgId}/reports/calendar`)
+      .then(setCalendar)
+      .catch(() => setCalendar([]));
   }, [orgId]);
 
   const openBudget = () => openTab({ id: "budget", title: "Execuția bugetului", kind: "budget" });
@@ -56,7 +86,36 @@ export function HomeScreen({ org }: { org: OrganizationBrief | undefined }) {
             </div>
           )}
           <h2>Calendarul raportărilor</h2>
-          <p className="muted">Termenele IPC21, 5-CON și ONG17 apar aici odată cu modulul de rapoarte.</p>
+          {calendar?.length === 0 && <p className="muted">Nu sunt termene de raportare.</p>}
+          {calendar && calendar.length > 0 && (
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Termen</th>
+                  <th>Raport</th>
+                  <th>Perioada</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {calendar.map((i) => (
+                  <tr key={i.id}>
+                    <td>{day(i.due_date)}</td>
+                    <td>
+                      <button className="link" title={i.title ?? ""} onClick={() => openTab(reportTab(i))}>
+                        {i.code}
+                      </button>
+                    </td>
+                    <td>{periodLabel(i)}</td>
+                    <td className={STATUS_CLASS[i.status]}>
+                      {i.status_label}
+                      {i.status === "overdue" ? ` (${-i.days_left} zile)` : i.status === "due_soon" ? ` (${i.days_left} zile)` : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         <div>
           <h2>Execuția bugetelor</h2>
