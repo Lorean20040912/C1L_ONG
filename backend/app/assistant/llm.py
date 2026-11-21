@@ -53,11 +53,14 @@ class AnthropicClient:
         except (httpx.HTTPError, ValueError) as exc:
             raise LLMError("Serviciul AI nu a răspuns. Încercați din nou.") from exc
         reply = LLMReply()
-        for block in data.get("content", []):
-            if block.get("type") == "text":
-                reply.text += block.get("text", "")
-            elif block.get("type") == "tool_use":
-                reply.tool_calls.append(ToolCall(block["id"], block["name"], block.get("input") or {}))
+        try:
+            for block in data.get("content", []):
+                if block.get("type") == "text":
+                    reply.text += block.get("text", "")
+                elif block.get("type") == "tool_use":
+                    reply.tool_calls.append(ToolCall(block["id"], block["name"], block.get("input") or {}))
+        except (KeyError, AttributeError, TypeError) as exc:
+            raise LLMError("Răspuns neașteptat de la serviciul AI.") from exc
         return reply
 
 

@@ -41,6 +41,8 @@ export function AssistantScreen() {
       });
       setMessages((m) => [...m, answer]);
     } catch (e) {
+      setMessages((m) => m.filter((x) => x.id >= 0));
+      setText(content);
       setError((e as Error).message);
     } finally {
       setBusy(false);

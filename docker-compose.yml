@@ -6,6 +6,7 @@ x-backend-env: &backend-env
   REDIS_URL: redis://redis:6379/0
   JWT_SECRET: ${JWT_SECRET:-schimba-acest-secret-in-env}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:-schimba-cheia-de-criptare-in-env}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-15}
   REFRESH_TOKEN_DAYS: ${REFRESH_TOKEN_DAYS:-7}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
