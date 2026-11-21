@@ -19,6 +19,7 @@ from app.auth.models import User
 from app.catalogs.models import Account
 from app.posting.models import AccountTurnover, EntryLine
 from app.regulated import sources as src
+from app.regulated.errors import ReportError, ReportFrozen
 from app.regulated.formulas import FormulaError, evaluate, quantize, references
 from app.regulated.models import ReportForm, ReportingCalendar, ReportStatus, TaxReport
 from app.workspaces.models import Organization
@@ -28,12 +29,6 @@ UNSCALED_PREFIXES = ("stats.", "tax_rate.")
 UNIT_DECIMALS = {"pers.": 0, "%": 2}
 
 
-class ReportError(Exception):
-    """Mesaj pentru utilizator (422)."""
-
-
-class ReportFrozen(ReportError):
-    """Raportul depus nu se mai modifică (409)."""
 
 
 # ───────────────────────────── formulare și perioade ─────────────────────────────
@@ -171,7 +166,8 @@ def compute(
         if not evaluate(check["expr"], cell, source):
             checks.append({"severity": check.get("severity", "error"), "message": check["message"]})
     if not has_activity:
-        informative = {c for c, r in rows.items() if r.get("source", "").startswith("stats.")}
+        # statistica și cota impozitului nu vin din înregistrări
+        informative = {c for c, r in rows.items() if r.get("source", "").startswith(UNSCALED_PREFIXES)}
         if any(v for c, v in values.items() if c not in informative):
             checks.append({"severity": "error", "message": "Fără activitate în perioadă toate rândurile trebuie să fie 0"})
     checks += [{"severity": "warning", "message": w} for w in warnings or []]
@@ -267,6 +263,8 @@ def generate(db: Session, org: Organization, user: User | None, code: str, perio
         raise ReportError(f"Raportul {code} se completează odată cu modulul lui")
     form = form_for(db, code, period_from)
     period_to = period_bounds(form.periodicity, period_from)
+    # două „Generează” simultane pe aceeași perioadă nu trebuie să creeze două ciorne
+    db.execute(select(func.pg_advisory_xact_lock(func.hashtext(f"tax_report:{org.id}:{code}:{period_from}"))))
     report = db.scalar(
         select(TaxReport)
         .where(

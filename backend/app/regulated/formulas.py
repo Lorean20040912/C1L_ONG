@@ -12,11 +12,13 @@ import re
 from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal
 
+from app.regulated.errors import ReportError
+
 _REF = re.compile(r"\[([0-9A-Za-z_.]+)\]|\{([0-9A-Za-z_.:]+)\}")
 
 
-class FormulaError(ValueError):
-    pass
+class FormulaError(ReportError):
+    """Formulă greșită în structura formularului."""
 
 
 def parse(expr: str) -> tuple[ast.Expression, dict[str, tuple[str, str]]]:

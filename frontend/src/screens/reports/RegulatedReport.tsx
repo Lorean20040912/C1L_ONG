@@ -33,7 +33,9 @@ function startOf(code: RegulatedCode, year: number, quarter: number): string {
 export function RegulatedReport({ code, periodFrom }: { code: RegulatedCode; periodFrom?: string }) {
   const { orgId, role } = useShell();
   const now = new Date();
-  const initial = periodFrom ? new Date(periodFrom) : new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  // „2025-01-01” se citește de mână: new Date() ar lua miezul nopții UTC și, la fusul local negativ, ziua precedentă
+  const [py, pm] = (periodFrom ?? "").split("-").map(Number);
+  const initial = periodFrom ? new Date(py, pm - 1, 1) : new Date(now.getFullYear(), now.getMonth() - 3, 1);
   const [year, setYear] = useState(code === "ONG17" && !periodFrom ? now.getFullYear() - 1 : initial.getFullYear());
   const [quarter, setQuarter] = useState(Math.floor(initial.getMonth() / 3) + 1);
   const [report, setReport] = useState<TaxReport | null>(null);

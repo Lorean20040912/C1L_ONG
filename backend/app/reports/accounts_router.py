@@ -132,9 +132,14 @@ def _check_period(date_from: date, date_to: date) -> None:
 
 
 def _lines(db, conds, debit_side, credit_side, *extra):
+    """Rândurile cu cel puțin o parte potrivită; ultimele două coloane spun care parte
+    (D / K) e a contului — și, cu filtrul pe contrapartidă, care parte are contrapartida."""
     debit, credit = aliased(Account), aliased(Account)
     return db.execute(
-        select(EntryLine, debit, credit, Document.doc_number, Document.type, Grant.code)
+        select(
+            EntryLine, debit, credit, Document.doc_number, Document.type, Grant.code,
+            debit_side.label("on_debit"), credit_side.label("on_credit"),
+        )  # fmt: skip
         .join(debit, debit.id == EntryLine.debit_account_id)
         .join(credit, credit.id == EntryLine.credit_account_id)
         .join(Document, Document.id == EntryLine.document_id)
@@ -146,10 +151,10 @@ def _lines(db, conds, debit_side, credit_side, *extra):
 
 def _opening(db, conds, debit_side, credit_side, ids, date_from) -> Decimal:
     total = Decimal(0)
-    for entry, debit, credit, *_ in _lines(db, conds, debit_side, credit_side, EntryLine.entry_date < date_from):
-        if debit.id in ids:
+    for entry, *_, on_debit, on_credit in _lines(db, conds, debit_side, credit_side, EntryLine.entry_date < date_from):
+        if on_debit:
             total += entry.amount
-        if credit.id in ids:
+        if on_credit:
             total -= entry.amount
     return total
 
@@ -162,10 +167,12 @@ def _card(db, ctx, account_id, date_from, date_to, grant_id, counterparty_id) ->
     opening = _opening(db, conds, debit_side, credit_side, ids, date_from)
     balance, rows, dt_total, kt_total = opening, [], Decimal(0), Decimal(0)
     in_period = EntryLine.entry_date.between(date_from, date_to)
-    for entry, debit, credit, number, doc_type, grant_code in _lines(db, conds, debit_side, credit_side, in_period):
+    for entry, debit, credit, number, doc_type, grant_code, on_debit, on_credit in _lines(
+        db, conds, debit_side, credit_side, in_period
+    ):
         # un rând între două subconturi ale aceluiași cont apare pe ambele părți
-        for side, own, other in (("D", debit, credit), ("K", credit, debit)):
-            if own.id not in ids:
+        for side, own, other, matched in (("D", debit, credit, on_debit), ("K", credit, debit, on_credit)):
+            if not matched:
                 continue
             dt = entry.amount if side == "D" else Decimal(0)
             kt = entry.amount if side == "K" else Decimal(0)
@@ -248,14 +255,14 @@ def account_analysis(
     opening = _opening(db, conds, debit_side, credit_side, ids, date_from)
     by_account: dict[uuid.UUID, list] = defaultdict(lambda: [None, Decimal(0), Decimal(0)])
     in_period = EntryLine.entry_date.between(date_from, date_to)
-    for entry, debit, credit, *_ in _lines(db, conds, debit_side, credit_side, in_period):
+    for entry, debit, credit, *_, on_debit, on_credit in _lines(db, conds, debit_side, credit_side, in_period):
         if debit.id in ids and credit.id in ids:
             continue  # mișcare între subconturile aceluiași cont
-        if debit.id in ids:
+        if on_debit:
             row = by_account[credit.id]
             row[0] = credit
             row[1] += entry.amount
-        else:
+        if on_credit:
             row = by_account[debit.id]
             row[0] = debit
             row[2] += entry.amount

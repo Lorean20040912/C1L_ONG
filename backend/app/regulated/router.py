@@ -13,11 +13,10 @@ from app.audit.service import write_audit
 from app.auth.deps import ADMIN_ROLES, POSTING_ROLES, OrgContext, get_org_context
 from app.core.db import get_db
 from app.regulated import export
+from app.regulated.errors import ReportError, ReportFrozen
 from app.regulated.models import ReportForm, ReportingCalendar, ReportStatus, TaxReport
 from app.regulated.service import (
     STATUS_LABELS,
-    ReportError,
-    ReportFrozen,
     calculate_sources,
     calendar_status,
     cell_sources,
@@ -135,6 +134,13 @@ def _report(db: Session, ctx: OrgContext, report_id: uuid.UUID, lock: bool = Fal
 
 
 def report_out(db: Session, report: TaxReport) -> ReportOut:
+    try:
+        return _report_out(db, report)
+    except ReportError as exc:  # formulă greșită într-o versiune a formularului
+        raise _http(exc) from None
+
+
+def _report_out(db: Session, report: TaxReport) -> ReportOut:
     form = db.get(ReportForm, report.form_id)
     data = report.data or {}
     values = {k: Decimal(v) for k, v in data.get("values", {}).items()}
@@ -282,8 +288,8 @@ def drilldown(
     row = next((r for r in form.structure.get("rows", []) if r["code"] == code), None)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Rândul {code} nu există în formular")
-    names = cell_sources(form.structure, code)
     try:
+        names = cell_sources(form.structure, code)
         current = calculate_sources(db, ctx.organization_id, form, report.period_from, report.period_to)
     except ReportError as exc:
         raise _http(exc) from None

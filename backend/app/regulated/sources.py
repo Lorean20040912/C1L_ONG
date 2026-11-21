@@ -297,7 +297,7 @@ def annex_1d(db: Session, organization_id: uuid.UUID, year: int, result: SourceR
     """Anexa 1D: pentru fiecare an al desemnării (granturile `percentage_designation`),
     primite, cheltuite în anul desemnării și în următorii doi, rămase de restituit."""
     grants = db.scalars(
-        select(Grant).where(Grant.organization_id == organization_id, func.lower(Grant.funding_type) == DESIGNATION)
+        select(Grant).where(Grant.organization_id == organization_id, func.lower(func.trim(Grant.funding_type)) == DESIGNATION)
     ).all()
     rows = []
     for grant in sorted(grants, key=lambda g: (g.designation_year or g.start_date.year, g.code)):

@@ -305,3 +305,69 @@ def test_formulele_nu_executa_cod():
     for bad in ("__import__('os')", "[a].real", "open('x')", "[a] ** 2"):
         with pytest.raises(FormulaError):
             evaluate(bad, cell, lambda s: Decimal(0))
+
+
+def test_ong17_fara_activitate_se_poate_depune(client, db):
+    user = make_user(db, "zero@exemplu.md")
+    org = make_org(db, user, "AO Zero")
+    report = _generate(client, org, user, "ONG17", "2025-01-01")
+    assert _values(report)["050"] == 12 and _values(report)["060"] == 0
+    assert not [c for c in report["checks"] if c["severity"] == "error"]
+    r = client.post(f"/organizations/{org.id}/reports/tax-reports/{report['id']}/status", json={"status": "submitted"},
+                    headers=auth_headers(user))  # fmt: skip
+    assert r.status_code == 200
+
+
+def test_fisa_contului_pe_contrapartida(client, db):
+    from app.catalogs.models import Counterparty
+    from app.core.enums import SubcontoType
+    from app.posting.engine import AnalyticsInput
+
+    user = make_user(db, "cp@exemplu.md")
+    org = make_org(db, user, "AO Cp")
+    acc = make_accounts(db, org, "521", "521.1", "242", "716")
+    x, y = (Counterparty(organization_id=org.id, name=n) for n in ("X", "Y"))
+    db.add_all([x, y])
+    db.flush()
+
+    def post(d, dt, kt, amount, analytics):
+        doc = Document(organization_id=org.id, type=DocumentType.other, doc_number="D", doc_date=d)
+        db.add(doc)
+        db.flush()
+        post_document(db, organization_id=org.id, document_id=doc.id, user_id=user.id, lines=[LineInput(
+            debit_account_id=acc[dt].id, credit_account_id=acc[kt].id, amount=Decimal(amount), analytics=analytics)])  # fmt: skip
+
+    k = lambda cp: AnalyticsInput(side="K", subconto_type=SubcontoType.counterparty, ref_id=cp.id)  # noqa: E731
+    d = lambda cp: AnalyticsInput(side="D", subconto_type=SubcontoType.counterparty, ref_id=cp.id)  # noqa: E731
+    post(date(2025, 12, 1), "716", "521", 100, [k(x)])
+    post(date(2026, 1, 5), "716", "521", 300, [k(x)])
+    post(date(2026, 1, 6), "716", "521", 50, [k(y)])
+    post(date(2026, 1, 7), "521.1", "521", 70, [k(x)])  # între subconturi, contrapartida doar pe Kt
+    post(date(2026, 1, 8), "521", "242", 40, [d(x)])
+    params = {"account_id": str(acc["521"].id), "date_from": "2026-01-01", "date_to": "2026-12-31",
+              "counterparty_id": str(x.id)}  # fmt: skip
+    card = client.get(f"/organizations/{org.id}/reports/account-card", params=params, headers=auth_headers(user)).json()
+    assert Decimal(card["opening"]) == -100
+    assert Decimal(card["turnover_credit"]) == 370 and Decimal(card["turnover_debit"]) == 40
+    assert Decimal(card["closing"]) == -430
+    analysis = client.get(f"/organizations/{org.id}/reports/account-analysis", params=params,
+                          headers=auth_headers(user)).json()  # fmt: skip
+    assert {r["code"]: (Decimal(r["debit"]), Decimal(r["credit"])) for r in analysis["rows"]} == {
+        "716": (0, 300), "242": (40, 0)
+    }  # fmt: skip
+
+
+def test_formula_gresita_in_formular_da_422(client, db, ong):
+    from sqlalchemy import select
+
+    from app.regulated.models import ReportForm
+
+    user, org, _ = ong
+    report = _generate(client, org, user, "ONG17", "2026-01-01")
+    form = db.scalar(select(ReportForm).where(ReportForm.code == "ONG17"))
+    structure = dict(form.structure)
+    structure["rows"] = [{**r, "formula": "[0101] +"} if r["code"] == "010" else r for r in structure["rows"]]
+    form.structure = structure
+    db.flush()
+    r = client.get(f"/organizations/{org.id}/reports/tax-reports/{report['id']}", headers=auth_headers(user))
+    assert r.status_code == 422 and "Formulă greșită" in r.json()["detail"]
