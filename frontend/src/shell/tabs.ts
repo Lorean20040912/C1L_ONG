@@ -47,7 +47,21 @@ export type TabKind =
   | "tasks"
   | "onec-import"
   | "efactura"
-  | "assistant";
+  | "assistant"
+  | "asset-invoice"
+  | "commissioning"
+  | "writeoff"
+  | "grant-depreciation"
+  | "grant-purchases"
+  | "funding"
+  | "donor-package"
+  | "calc-types"
+  | "period-adjustments"
+  | "counterparties"
+  | "departments"
+  | "doc-sources"
+  | "bank-profiles"
+  | "scans";
 
 export interface Tab {
   id: string;
@@ -128,6 +142,20 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Import din 1C": "onec-import",
   "e-Factura": "efactura",
   "Asistent AI": "assistant",
+  "Mijloace fixe (din factură)": "asset-invoice",
+  "Punere în funcțiune": "commissioning",
+  "Casare": "writeoff",
+  "Amortizarea pe granturi": "grant-depreciation",
+  "Achiziții pe granturi": "grant-purchases",
+  "Finanțare primită": "funding",
+  "Pachet pentru donator": "donor-package",
+  "Tipuri de calcul": "calc-types",
+  "Ajustarea perioadei": "period-adjustments",
+  "Contrapartide": "counterparties",
+  "Subdiviziuni": "departments",
+  "Surse de documente (Drive / folder)": "doc-sources",
+  "Profiluri bănci": "bank-profiles",
+  "Documente scanate (AI)": "scans",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];

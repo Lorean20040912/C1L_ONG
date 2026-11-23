@@ -44,6 +44,20 @@ import { Rsf2Screen } from "../screens/reports/Rsf2Screen";
 import { ReportingDataScreen } from "../screens/reports/ReportingDataScreen";
 import { EfacturaScreen } from "../screens/import/EfacturaScreen";
 import { OnecImportScreen } from "../screens/import/OnecImportScreen";
+import { AssetsFromInvoice } from "../screens/fix6/AssetsFromInvoice";
+import { Commissioning } from "../screens/fix6/Commissioning";
+import { Writeoff } from "../screens/fix6/Writeoff";
+import { GrantDepreciation } from "../screens/fix6/GrantDepreciation";
+import { GrantPurchases } from "../screens/fix6/GrantPurchases";
+import { FundingReceived } from "../screens/fix6/FundingReceived";
+import { DonorPackage } from "../screens/fix6/DonorPackage";
+import { CalcTypes } from "../screens/fix6/CalcTypes";
+import { PeriodAdjustments } from "../screens/fix6/PeriodAdjustments";
+import { CounterpartiesScreen } from "../screens/fix6/CounterpartiesScreen";
+import { DepartmentsScreen } from "../screens/fix6/DepartmentsScreen";
+import { DocumentSources } from "../screens/fix6/DocumentSources";
+import { BankProfiles } from "../screens/fix6/BankProfiles";
+import { ScannedDocuments } from "../screens/fix6/ScannedDocuments";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { ProfileContext, useProfileLoader } from "./profile";
@@ -313,6 +327,34 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <GrantAdvancedScreen />;
     case "stock-distribution":
       return <StockDistributionScreen />;
+    case "asset-invoice":
+      return <AssetsFromInvoice />;
+    case "commissioning":
+      return <Commissioning />;
+    case "writeoff":
+      return <Writeoff />;
+    case "grant-depreciation":
+      return <GrantDepreciation />;
+    case "grant-purchases":
+      return <GrantPurchases />;
+    case "funding":
+      return <FundingReceived />;
+    case "donor-package":
+      return <DonorPackage />;
+    case "calc-types":
+      return <CalcTypes />;
+    case "period-adjustments":
+      return <PeriodAdjustments />;
+    case "counterparties":
+      return <CounterpartiesScreen />;
+    case "departments":
+      return <DepartmentsScreen />;
+    case "doc-sources":
+      return <DocumentSources />;
+    case "bank-profiles":
+      return <BankProfiles />;
+    case "scans":
+      return <ScannedDocuments />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:

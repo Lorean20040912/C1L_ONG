@@ -142,3 +142,20 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** Deschide un fișier protejat (ex. un scan) într-o filă nouă a browserului, cu jetonul de acces. */
+export async function openFile(path: string): Promise<void> {
+  const send = () => {
+    const token = read(ACCESS);
+    return fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  };
+  let res = await send();
+  if (res.status === 401) {
+    refreshing ??= refreshTokens().finally(() => (refreshing = null));
+    if (await refreshing) res = await send();
+  }
+  if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
+  const url = URL.createObjectURL(await res.blob());
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
