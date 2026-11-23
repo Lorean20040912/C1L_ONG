@@ -25,6 +25,8 @@ from app.fix6.router import router as fix6_router
 from app.fix8.check import router as accounting_check_router
 from app.fix8.ledger import router as ledger_router
 from app.fix8.vat import router as vat_router
+from app.treasury.reports import router as treasury_reports_router
+from app.treasury.router import router as treasury_router
 from app.fix6.scans import router as scans_router
 from app.fix6.donor_package import router as donor_package_router
 from app.grants.admin_router import router as grants_admin_router
@@ -98,6 +100,8 @@ app.include_router(fix6_router)
 app.include_router(vat_router)
 app.include_router(ledger_router)
 app.include_router(accounting_check_router)
+app.include_router(treasury_router)
+app.include_router(treasury_reports_router)
 app.include_router(scans_router)
 app.include_router(donor_package_router)
 

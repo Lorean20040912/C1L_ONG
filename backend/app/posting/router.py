@@ -158,6 +158,8 @@ DEDICATED_ROUTES = {
     DocumentType.invoice: "invoices",
     DocumentType.payment_order: "payment-orders",
     DocumentType.individual_payment: "individual-payments",
+    DocumentType.act: "treasury/docs",
+    DocumentType.receipt: "treasury/docs",
 }
 
 
