@@ -20,7 +20,9 @@ export function AssistantScreen() {
   const end = useRef<HTMLDivElement>(null);
   const base = `/organizations/${orgId}/assistant`;
 
-  useEffect(() => end.current?.scrollIntoView?.({ block: "end" }), [messages]);
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: "end" });
+  }, [messages]);
 
   async function send() {
     const content = text.trim();
