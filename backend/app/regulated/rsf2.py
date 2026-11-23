@@ -6,14 +6,14 @@ Valorile se iau din contabilitate: bilanțul din soldurile conturilor (`account_
 
 Corespondența cu rândurile formularului (ipoteze de lucru; formularul oficial nu se află în depozit):
   table1 (active imobilizate; c4 cost la început, c5 cost la sfârșit, c6 uzura, c7 valoarea contabilă)
-    r030 ← 12x (cost) și 124 (amortizarea); r110 ← 11x (cost) și 112 (amortizarea);
+    r030 ← 12x (cost) și 124/126..129 (amortizarea și ajustările); r110 ← 11x (cost) și 112 (amortizarea);
     r060, r130, r180 = totaluri pe grupe; r200 = r060 + r130 + r180 + r190. Celelalte rânduri rămân 0.
   table2 (bilanț; c4 = 01.01, c5 = 31.12)
     r010 ← 11x net, r020 ← 12x net, r030 ← alte conturi din clasa 1, r100 = total active imobilizate;
     r110 ← 21x, r130 ← 22x, r140 ← 23x (r141 = 234.4, creanțe pe granturi), r150 ← 24x, r160 ← alte din clasa 2,
     r180 = total active curente, r190 = r100 + r180;
     r200 ← 331/332 de la 1 ianuarie (rezultat reportat), r210 = rezultatul anului, r220 ← alte conturi din clasa 3
-    (fără 33 și 34), r260 = total capital propriu; r310 ← 3411, r320 ← 3412, r330 ← alte conturi 34,
+    (fără 33 și 34), r260 = total capital propriu; r310 ← 341.2, r320 ← 341.3, r330 ← alte conturi 34,
     r340 ← 521, r350 ← 531/533/534, r360 ← 535, r370 ← 537, r380 ← restul clasei 5 și clasa 4,
     r390 = r310..r380, r400 = r260 + r390. Rândurile r010..r100 de la r090, r230..r250, r270..r300 rămân 0.
   table3 (rezultatul financiar; c3 = anul precedent, c4 = anul raportat)
@@ -68,11 +68,17 @@ def _sum(bal: dict[str, Decimal], *prefixes: str, exclude: tuple[str, ...] = ())
     )
 
 
+# conturile reglatoare (pasive) din planul 1C „Хозрасчетный”: 113/114/116/117 pentru imobilizările necorporale
+# (112 este costul, nu amortizarea), 124/126..129 pentru cele corporale
+_INTANGIBLE_CONTRA = ("113", "114", "116", "117")
+_TANGIBLE_CONTRA = ("124", "126", "127", "128", "129")
+
+
 def _fixed_assets(bal: dict[str, Decimal]) -> dict[str, tuple[Decimal, Decimal]]:
     """Rând table1 → (cost, amortizare) la data soldului."""
     return {
-        "030": (_sum(bal, "12", exclude=("124",)), -_sum(bal, "124")),
-        "110": (_sum(bal, "11", exclude=("112",)), -_sum(bal, "112")),
+        "030": (_sum(bal, "12", exclude=_TANGIBLE_CONTRA), -_sum(bal, *_TANGIBLE_CONTRA)),
+        "110": (_sum(bal, "11", exclude=_INTANGIBLE_CONTRA), -_sum(bal, *_INTANGIBLE_CONTRA)),
     }
 
 
@@ -96,9 +102,9 @@ def _balance_sheet(bal: dict[str, Decimal], opening_equity: Decimal | None, resu
     r["200"] = retained
     r["210"] = result or 0
     r["260"] = r["200"] + r["210"] + r["220"]
-    r["310"] = -_round(_sum(bal, "3411"))
-    r["320"] = -_round(_sum(bal, "3412"))
-    r["330"] = -_round(_sum(bal, "34", exclude=("3411", "3412")))
+    r["310"] = -_round(_sum(bal, "341.2"))
+    r["320"] = -_round(_sum(bal, "341.3"))
+    r["330"] = -_round(_sum(bal, "34", exclude=("341.2", "341.3")))
     r["340"] = -_round(_sum(bal, "521"))
     r["350"] = -_round(_sum(bal, "531", "533", "534"))
     r["360"] = -_round(_sum(bal, "535"))

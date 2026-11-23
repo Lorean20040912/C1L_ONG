@@ -18,7 +18,7 @@ def ong(db):
     user = make_user(db, "contabil@exemplu.md")
     org = make_org(db, user, "AO Beta")
     org.caem, org.sfs_office, org.cuiio, org.director_name = "9499", "DFC Centru", "40000000", "Director Exemplu"
-    acc = make_accounts(db, org, "123", "124", "242", "3411", "521", "618", "718", "616", "537", "331")
+    acc = make_accounts(db, org, "123", "124", "242", "341.2", "521", "618", "718", "616", "537", "331", "112", "113")
 
     def post(d, dt, kt, amount):
         doc = Document(organization_id=org.id, type=DocumentType.other, doc_number=f"D{amount}{dt}", doc_date=d)
@@ -27,8 +27,10 @@ def ong(db):
         post_document(db, organization_id=org.id, document_id=doc.id, user_id=user.id,
                       lines=[LineInput(debit_account_id=acc[dt].id, credit_account_id=acc[kt].id, amount=Decimal(amount))])  # fmt: skip
 
-    post(date(2025, 3, 1), "123", "3411", 1000)  # mijloc fix primit în 2025
-    post(date(2026, 2, 1), "3411", "124", 100)  # amortizare în 2026
+    post(date(2025, 3, 1), "123", "341.2", 1000)  # mijloc fix primit în 2025
+    post(date(2026, 2, 1), "341.2", "124", 100)  # amortizare în 2026
+    post(date(2025, 4, 1), "112", "242", 300)  # licență software (imobilizare necorporală)
+    post(date(2026, 3, 1), "341.2", "113", 50)  # amortizarea ei (113, nu 112)
     post(date(2026, 5, 1), "242", "618", 2000)
     post(date(2026, 6, 1), "718", "521", 800)
     post(date(2026, 7, 1), "537", "616", 500)
@@ -62,7 +64,9 @@ def test_rsf2_valori_din_contabilitate(client, ong):
     t1, t2, t3 = (int_map(root.find(f"{t}/row")) for t in ("table1", "table2", "table3"))
     # mijloace fixe: cost 1000 (și la început), amortizare 100 la sfârșit, valoarea contabilă 900
     assert [t1[f"r030c{c}"] for c in (4, 5, 6, 7)] == [1000, 1000, 100, 900]
-    assert t1["r200c7"] == t1["r060c7"] == 900
+    # imobilizări necorporale (planul 1C): costul pe 112, amortizarea pe 113
+    assert [t1[f"r110c{c}"] for c in (4, 5, 6, 7)] == [300, 300, 50, 250]
+    assert t1["r200c7"] == t1["r060c7"] + t1["r130c7"] + t1["r180c7"] + t1["r190c7"] == 900 + 250
     # rezultatul: 2000 venituri economice − 800 cheltuieli, statutar 500
     assert (t3["r040c4"], t3["r050c4"], t3["r060c4"]) == (2000, 800, 1200)
     assert (t3["r020c4"], t3["r110c4"]) == (500, 1700)
