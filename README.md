@@ -18,7 +18,7 @@ Proiect pentru examenul **Programare Web 2** și teza de licență.
 Cerințe: Docker cu Docker Compose v2.
 
 ```bash
-cp .env.example .env        # opțional: fără .env se folosesc valorile de dezvoltare
+cp .env.example .env        # opțional: fără .env se folosesc valorile de dezvoltare și contul demo
 docker compose up --build
 ```
 
