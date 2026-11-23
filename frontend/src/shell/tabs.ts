@@ -61,7 +61,10 @@ export type TabKind =
   | "departments"
   | "doc-sources"
   | "bank-profiles"
-  | "scans";
+  | "scans"
+  | "vat"
+  | "general-ledger"
+  | "accounting-check";
 
 export interface Tab {
   id: string;
@@ -156,6 +159,9 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Surse de documente (Drive / folder)": "doc-sources",
   "Profiluri bănci": "bank-profiles",
   "Documente scanate (AI)": "scans",
+  TVA: "vat",
+  "Cartea mare": "general-ledger",
+  "Verificarea contabilității": "accounting-check",
 };
 
 export const ADMIN_ROLES: UserRole[] = ["admin", "chief_accountant"];

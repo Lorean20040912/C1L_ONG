@@ -58,6 +58,9 @@ import { DepartmentsScreen } from "../screens/fix6/DepartmentsScreen";
 import { DocumentSources } from "../screens/fix6/DocumentSources";
 import { BankProfiles } from "../screens/fix6/BankProfiles";
 import { ScannedDocuments } from "../screens/fix6/ScannedDocuments";
+import { VatScreen } from "../screens/fix8/VatScreen";
+import { GeneralLedger } from "../screens/fix8/GeneralLedger";
+import { AccountingCheck } from "../screens/fix8/AccountingCheck";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { ProfileContext, useProfileLoader } from "./profile";
@@ -355,6 +358,12 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <BankProfiles />;
     case "scans":
       return <ScannedDocuments />;
+    case "vat":
+      return <VatScreen />;
+    case "general-ledger":
+      return <GeneralLedger />;
+    case "accounting-check":
+      return <AccountingCheck />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:
