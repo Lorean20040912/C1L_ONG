@@ -22,7 +22,7 @@ from app.posting.models import AccountingPolicy, EntryLine, EntryLineAnalytics
 from tests.conftest import make_accounts, make_org, make_user
 
 CHART = (
-    "123", "124", "211", "213", "234.4", "242", "243", "3411", "425",
+    "123", "124", "211", "213", "234.4", "242", "243", "341.2", "425",
     "521", "535", "537", "616", "617", "716", "717", "718",
 )  # fmt: skip
 D = date(2026, 11, 3)
@@ -135,7 +135,7 @@ def test_factura_cu_randuri_de_tipuri_diferite(db, ong):
     post_invoice(db, org.id, doc.id, user.id)
     assert entries(db, doc) == [
         ("123", "521", Decimal(15000)),  # mijlocul fix
-        ("537", "3411", Decimal(15000)),  # fondul de active imobilizate (proiect până la 31.12 → 537)
+        ("537", "341.2", Decimal(15000)),  # fondul de active imobilizate (proiect până la 31.12 → 537)
         ("716", "521", Decimal(900)),  # OMVSD dat în exploatare
         ("537", "616", Decimal(900)),
         ("211", "521", Decimal(570)),  # materialele intră în stoc
@@ -215,7 +215,7 @@ def test_contul_ales_pe_rand_si_mf_nepredestinat(db, ong):
         ],
     )
     post_invoice(db, org.id, doc.id, user.id)
-    # OMVSD care nu se dă în exploatare intră în stoc pe contul ales; MF din cotizații nu formează fond 3411
+    # OMVSD care nu se dă în exploatare intră în stoc pe contul ales; MF din cotizații nu formează fond 341.2
     assert entries(db, doc) == [("213", "521", Decimal(900)), ("123", "521", Decimal(4000))]
     asset = db.scalar(select(FixedAsset).where(FixedAsset.document_id == doc.id))
     assert asset.status == "suspended" and asset.depreciation_start is None

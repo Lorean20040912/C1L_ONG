@@ -1,7 +1,7 @@
 """Execuția bugetului: planificat / cheltuit / rest pe linii de buget (ToR F6.2).
 
 „Cheltuit” = suma înregistrărilor care poartă linia de buget. Regulile „oglindă”
-(537/616, 3411, 535) nu poartă linia (migrarea 0004), deci fiecare cheltuială se
+(537/616, 341.2, 535) nu poartă linia (migrarea 0004), deci fiecare cheltuială se
 numără o singură dată, indiferent dacă e serviciu, stoc sau mijloc fix.
 
 Versiuni de buget (docs/02 §9a): liniile cu același cod din versiuni diferite sunt

@@ -6,7 +6,7 @@
 - amortizarea acumulată se citește din înregistrări: rândurile cu analitica
   `fixed_asset` = fișa, pe partea K (contul amortizării);
 - formula vine din `posting_rules` (month_close.depreciation / depreciation):
-  pentru MF din grant Dt 3411 — Kt 124 (amortizarea diminuează fondul, docs/11
+  pentru MF din grant Dt 341.2 — Kt 124 (amortizarea diminuează fondul, docs/11
   §2.4); pentru celelalte surse contabilul-șef adaugă corecția, iar contul de
   cheltuieli al fișei (`expense_account_id`) înlocuiește contul din formulă.
 """
@@ -151,7 +151,7 @@ def plan(
                         department_id=asset.department_id,
                         description=f"Amortizare {asset.inventory_no} {asset.name}",
                         analytics=[AnalyticsInput(side="K", subconto_type=SubcontoType.fixed_asset, ref_id=asset.id)],
-                        # MF din grant: amortizarea diminuează fondul 3411, nu merge pe cheltuieli
+                        # MF din grant: amortizarea diminuează fondul 341.2, nu merge pe cheltuieli
                         debit_account_id=asset.expense_account_id if funding != "special_purpose" else None,
                         credit_account_id=asset.depreciation_account_id,
                     )

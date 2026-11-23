@@ -14,7 +14,7 @@ from tests.conftest import auth_headers, make_accounts, make_org, make_user
 def ong(db):
     user = make_user(db, "contabil@exemplu.md")
     org = make_org(db, user, "AO Alfa")
-    acc = make_accounts(db, org, "123", "124", "211", "234.4", "242", "3411", "521", "537", "616", "716")
+    acc = make_accounts(db, org, "123", "124", "211", "234.4", "242", "341.2", "521", "537", "616", "716")
     db.add(
         AccountingPolicy(
             organization_id=org.id, valid_from=date(2026, 1, 1), grant_receivable_account_id=acc["234.4"].id

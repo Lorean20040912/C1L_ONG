@@ -32,9 +32,9 @@ Textele integrale stau în folderul local `doc legistlative/` (nu se publică î
 | 425 | Finanțări și încasări cu destinație specială pe termen lung | proiect / donator |
 | 537 | Finanțări și încasări cu destinație specială curente | proiect / donator |
 | 535 | Venituri anticipate curente | proiect |
-| 341 → 3411 | Fonduri de active imobilizate | proiect / MF |
-| 341 → 3412 | Fonduri de autofinanțare | — |
-| 341.3 | echivalentul contului 332 — profit neutilizat [SEM] | — |
+| 341.2 | Fonduri de active imobilizate | proiect / MF |
+| 341.3 | Fonduri de autofinanțare | — |
+| 341.1 / 341.4 | contribuții inițiale ale fondatorilor / alte fonduri (planul 1C) | — |
 | 544 | mijloace nepredestinate (ex. aport material la aderare) [SEM] | — |
 | **616** | Venituri aferente mijloacelor cu destinație specială — **proiecte** | proiect |
 | **617** | Venituri ale organizației (nepredestinate): **donații, ajutoare financiare, cotizații, cotizațiile sindicale** | **tipul venitului** [SEM] |
@@ -85,11 +85,11 @@ Mijloacele cu destinație specială se recunosc doar dacă există **certitudine
 ### 2.4 Mijloace fixe din grant [IM188], [ART sit.3], [SEM]
 
 - Intrare și punere în funcțiune: **Dt 123 — Kt 521**
-- Formarea fondului: **Dt 425 (sau 537) — Kt 3411** „Fonduri de active imobilizate”
-- **Amortizarea: Dt 3411 — Kt 124** (NU pe cheltuieli 713/716 — amortizarea diminuează fondul) [ART], [SEM]
+- Formarea fondului: **Dt 425 (sau 537) — Kt 341.2** „Fonduri de active imobilizate”
+- **Amortizarea: Dt 341.2 — Kt 124** (NU pe cheltuieli 713/716 — amortizarea diminuează fondul) [ART], [SEM]
 - Plata furnizorului: Dt 521 — Kt 242.
 
-> În aplicație: rândul de tip „Mijloc fix” dintr-o factură pe grant generează automat formarea fondului, iar închiderea lunii calculează amortizarea pe 3411/124. Pentru MF procurate din mijloace nepredestinate sau din activitatea economică se aplică amortizarea obișnuită pe cheltuieli (setare pe sursa de finanțare a MF).
+> În aplicație: rândul de tip „Mijloc fix” dintr-o factură pe grant generează automat formarea fondului, iar închiderea lunii calculează amortizarea pe 341.2/124. Pentru MF procurate din mijloace nepredestinate sau din activitatea economică se aplică amortizarea obișnuită pe cheltuieli (setare pe sursa de finanțare a MF).
 
 Activele primite gratuit/cu destinație specială **nu se vând**: se transmit gratuit altui ONG sau statului; vânzarea schimbă destinația (devine venit impozabil) [SEM]. Pentru imobilizări nu se aplică toate cele 3 metode de stabilire a valorii [SEM] — metoda se alege în politica contabilă.
 
@@ -110,7 +110,7 @@ Dobânda calculată pentru soldurile mijloacelor cu destinație specială: **Dt 
 |------------------------|---------|
 | restituire | Dt 537 — Kt 242 / 243 |
 | redirecționare la alt proiect | corespondență internă între subconturile 537/425 (proiect → proiect) |
-| rămân la dispoziția ONG | Dt 425 / 537 — Kt 3412 „Fonduri de autofinanțare” |
+| rămân la dispoziția ONG | Dt 425 / 537 — Kt 341.3 „Fonduri de autofinanțare” |
 
 ### 2.8 Cheltuieli peste buget și neeligibile [SEM], [MFG]
 

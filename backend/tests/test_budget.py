@@ -19,7 +19,7 @@ from tests.test_invoice_payment import make_invoice
 def ong(db):
     user = make_user(db, "contabil@exemplu.md")
     org = make_org(db, user, "AO Alfa")
-    acc = make_accounts(db, org, "123", "211", "234.4", "3411", "521", "537", "616", "716")
+    acc = make_accounts(db, org, "123", "211", "234.4", "341.2", "521", "537", "616", "716")
     db.add(
         AccountingPolicy(
             organization_id=org.id, valid_from=date(2026, 1, 1), grant_receivable_account_id=acc["234.4"].id
@@ -52,7 +52,7 @@ def service(line, amount):
 
 
 def test_executia_numara_fiecare_cheltuiala_o_singura_data(db, ong):
-    """Serviciul generează 716/521 și 537/616; mijlocul fix 123/521 și 537/3411 — pe linie se numără doar cheltuiala."""
+    """Serviciul generează 716/521 și 537/616; mijlocul fix 123/521 și 537/341.2 — pe linie se numără doar cheltuiala."""
     user, org, grant, bl, supplier = ong
     doc = make_invoice(
         db,

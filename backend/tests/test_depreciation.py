@@ -1,7 +1,7 @@
 """Amortizarea lunară și asistentul „Închiderea lunii”.
 
 ToR, criteriul 11: mijlocul fix dintr-o factură apare în fișă și se amortizează
-la închiderea lunii; pentru MF din grant Dt 3411 — Kt 124 (docs/11 §2.4).
+la închiderea lunii; pentru MF din grant Dt 341.2 — Kt 124 (docs/11 §2.4).
 """
 
 from datetime import date
@@ -27,7 +27,7 @@ from tests.test_invoice_payment import make_invoice
 def ong(db):
     user = make_user(db, "contabil@exemplu.md")
     org = make_org(db, user, "AO Alfa")
-    acc = make_accounts(db, org, "123", "124", "211", "234.4", "3411", "425", "521", "537", "616", "713", "716", "717")
+    acc = make_accounts(db, org, "123", "124", "211", "234.4", "341.2", "425", "521", "537", "616", "713", "716", "717")
     db.add(
         AccountingPolicy(
             organization_id=org.id, valid_from=date(2026, 1, 1), grant_receivable_account_id=acc["234.4"].id
@@ -92,7 +92,7 @@ def test_mf_din_factura_se_amortizeaza_pe_fond(db, ong):
     assert plan(db, org.id, 2026, 3).rows == []
     run_depreciation(db, org.id, 2026, 4, user.id)
     run = get_run(db, org.id, 2026, 4)
-    assert codes(db, run.document_id) == [("3411", "124", Decimal(1000))]
+    assert codes(db, run.document_id) == [("341.2", "124", Decimal(1000))]
     line = db.scalar(select(EntryLine).where(EntryLine.document_id == run.document_id))
     assert line.grant_id == grant.id and line.entry_date == date(2026, 4, 30)
     assert accumulated(db, org.id, [asset.id]) == {asset.id: Decimal(1000)}
@@ -196,7 +196,7 @@ def test_api_inchiderea_lunii_si_fisele(client, db, ong):
     r = client.patch(f"{base}/fixed-assets/{asset.id}", json={"useful_life_months": 36}, headers=h)
     assert r.status_code == 200 and r.json()["useful_life_months"] == 36
     preview = client.post(f"{base}/month-close/2026/4/depreciation/preview", headers=h).json()
-    assert preview["errors"] == [] and preview["rows"][0]["debit_account"] == "3411"
+    assert preview["errors"] == [] and preview["rows"][0]["debit_account"] == "341.2"
     assert Decimal(preview["total"]) == 1000
 
     state = client.post(f"{base}/month-close/2026/4/depreciation/run", headers=h).json()

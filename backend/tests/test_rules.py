@@ -20,7 +20,7 @@ from app.posting.rules import OperationInput, build_lines
 from tests.conftest import make_accounts, make_org, make_user
 
 CHART = (
-    "123", "124", "211", "234", "234.4", "242", "3411", "3412", "425",
+    "123", "124", "211", "234", "234.4", "242", "341.2", "341.3", "425",
     "521", "535", "537", "616", "617", "713", "716", "717", "718",
 )  # fmt: skip
 
@@ -154,7 +154,7 @@ def test_stocuri_distribuite_partial(db, ong):
 
 
 def test_mijloc_fix_din_grant_si_amortizarea_pe_fond(db, ong):
-    """[ART sit.3]: fondul 3411 se formează la intrare, amortizarea îl diminuează (nu merge pe 713/716)."""
+    """[ART sit.3]: fondul 341.2 se formează la intrare, amortizarea îl diminuează (nu merge pe 713/716)."""
     _, org, _, grant = ong
     lines = build(
         db,
@@ -163,11 +163,11 @@ def test_mijloc_fix_din_grant_si_amortizarea_pe_fond(db, ong):
         op("fixed_asset_receipt", "36000"),
         op("fixed_asset_fund", "36000", grant.id, funding="special_purpose", term="current"),
     )
-    assert codes(db, lines) == [("123", "521", Decimal(36000)), ("537", "3411", Decimal(36000))]
+    assert codes(db, lines) == [("123", "521", Decimal(36000)), ("537", "341.2", Decimal(36000))]
     depreciation = build(
         db, org, "month_close.depreciation", op("depreciation", "600", grant.id, funding="special_purpose")
     )
-    assert codes(db, depreciation) == [("3411", "124", Decimal(600))]
+    assert codes(db, depreciation) == [("341.2", "124", Decimal(600))]
 
 
 def test_diferente_de_curs_si_mijloace_neutilizate(db, ong):
@@ -181,7 +181,7 @@ def test_diferente_de_curs_si_mijloace_neutilizate(db, ong):
     )
     assert codes(db, fx) == [("537", "234.4", Decimal(120)), ("521", "537", Decimal(30))]
     close = build(db, org, "grant_close", op("unused_to_own_funds", "250", grant.id, term="current"))
-    assert codes(db, close) == [("537", "3412", Decimal(250))]
+    assert codes(db, close) == [("537", "341.3", Decimal(250))]
     refund = build(db, org, "payment_order", op("grant_refund", "250", grant.id))
     assert codes(db, refund) == [("537", "242", Decimal(250))]
 

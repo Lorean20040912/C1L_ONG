@@ -19,7 +19,7 @@ from app.regulated.models import OrganizationStats
 from tests.conftest import auth_headers, make_accounts, make_org, make_user
 from tests.xml_structure import assert_format, assert_same_structure
 
-CODES = ("124", "234", "242", "331", "3411", "521", "537", "616", "617", "618", "716", "717", "718")
+CODES = ("124", "234", "242", "331", "341.2", "521", "537", "616", "617", "618", "716", "717", "718")
 
 
 def _grant(db, org, code, funding, **kw):
@@ -65,7 +65,7 @@ def ong(db):
     post(date(2025, 6, 1), "242", "617", 5000, grant_id=dp.id)  # desemnarea primită în 2025
     post(q4, "717", "521", 600, grant_id=dp.id, cost_item_id=charity.id)
     post(q4, "717", "521", 100, grant_id=dp.id, is_non_statutory=True)
-    post(q4, "3411", "124", 50)  # amortizarea
+    post(q4, "341.2", "124", 50)  # amortizarea
     post(date(2026, 12, 31), "616", "331", 1500)  # închiderea anului — nu se numără
     db.add(OrganizationStats(organization_id=org.id, period_end=date(2026, 12, 31), members_count=40, volunteers_count=12))
     db.flush()
