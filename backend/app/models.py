@@ -7,6 +7,7 @@ from app.auth.models import OrganizationMember, User, UserBackupCode
 from app.catalogs.models import Account, AccountAnalytics, Counterparty, Department
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
 from app.features.models import CoaTemplate, Feature, OrganizationFeature, OrganizationTaxRegime
+from app.fix6.models import DocumentSource, FixedAssetEvent, PayrollCalcType, PeriodAdjustment, ScannedFile
 from app.fixed_assets.models import FixedAsset
 from app.grants.models import Allocation, BudgetLine, BudgetVersion, CostItem, Donor, Grant, GrantDonor, GrantTranche
 from app.month_close.models import MonthCloseRun
@@ -62,7 +63,12 @@ __all__ = [
     "EntryLineAnalytics",
     "ExemptionClaim",
     "Feature",
+    "DocumentSource",
     "FixedAsset",
+    "FixedAssetEvent",
+    "PayrollCalcType",
+    "PeriodAdjustment",
+    "ScannedFile",
     "Grant",
     "GrantDonor",
     "GrantTranche",

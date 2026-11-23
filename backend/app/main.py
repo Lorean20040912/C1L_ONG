@@ -21,6 +21,9 @@ from app.documents.payments_router import router as payments_router
 from app.documents.router import router as documents_router
 from app.efactura.router import router as efactura_router
 from app.features.router import router as features_router
+from app.fix6.router import router as fix6_router
+from app.fix6.scans import router as scans_router
+from app.fix6.donor_package import router as donor_package_router
 from app.grants.admin_router import router as grants_admin_router
 from app.grants.advanced_router import router as grants_advanced_router
 from app.grants.allocation_router import router as allocation_router
@@ -88,6 +91,9 @@ app.include_router(tasks_router)
 app.include_router(onec_import_router)
 app.include_router(efactura_router)
 app.include_router(assistant_router)
+app.include_router(fix6_router)
+app.include_router(scans_router)
+app.include_router(donor_package_router)
 
 
 @app.get("/health", tags=["sistem"])
