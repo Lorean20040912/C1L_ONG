@@ -218,6 +218,72 @@ def compute(db: Session, org: Organization, year: int) -> dict:
     }
 
 
+LABELS = {
+    "table1": {"030": "Granturi", "060": "Total mijloace cu destinație specială", "110": "Taxe de aderare și cotizații",
+               "130": "Total", "150": "Fond de active imobilizate", "160": "Fond de autofinanțare",
+               "180": "Total fonduri", "200": "Total surse de finanțare"},
+    "table2": {"010": "Imobilizări necorporale", "020": "Imobilizări corporale", "030": "Alte active imobilizate",
+               "100": "Total active imobilizate", "110": "Creanțe comerciale și avansuri acordate",
+               "130": "Creanțe ale personalului", "140": "Alte creanțe curente",
+               "141": "din care: creanțe privind mijloacele cu destinație specială", "150": "Numerar",
+               "160": "Alte active circulante", "180": "Total active circulante", "190": "Total active",
+               "200": "Corecții ale rezultatelor anilor precedenți", "210": "Excedent net al perioadei",
+               "220": "Alte elemente de capital", "260": "Total capital propriu",
+               "270": "Finanțări cu destinație specială pe termen lung", "290": "Alte datorii pe termen lung",
+               "300": "Total datorii pe termen lung",
+               "310": "Finanțări și încasări cu destinație specială curente", "320": "Venituri anticipate curente",
+               "330": "Datorii comerciale și avansuri primite", "340": "Datorii față de personal",
+               "350": "Datorii privind asigurările sociale și medicale", "360": "Datorii față de buget",
+               "370": "Credite curente", "380": "Alte datorii curente", "390": "Total datorii curente",
+               "400": "Total pasive"},
+    "table3": {"010": "Venituri aferente mijloacelor cu destinație specială", "020": "Cheltuieli aferente",
+               "030": "Excedent aferent mijloacelor cu destinație specială", "040": "Alte venituri",
+               "050": "Alte cheltuieli", "060": "Rezultat înainte de impozitare", "110": "Excedent net al perioadei"},
+}  # fmt: skip
+
+
+def preview(data: dict) -> dict:
+    """Rândurile cu valori diferite de 0, pe anexe, și sumele de control (suma rândurilor = total)."""
+    t1 = data["table1"]
+    sections = []
+    rows1 = [{"code": c, "label": LABELS["table1"].get(c, ""), "values": list(v)} for c, v in t1.items() if any(v)]
+    sections.append({"id": "table1", "title": "Anexa 3 — modificările surselor de finanțare",
+                     "columns": ["Sold la început", "Majorări", "Diminuări", "Sold la sfârșit"], "rows": rows1})
+    rows2 = [
+        {"code": c, "label": LABELS["table2"].get(c, ""), "values": [data["opening"].get(c, 0), data["closing"].get(c, 0)]}
+        for c in T2_ROWS + ["141"] if data["opening"].get(c, 0) or data["closing"].get(c, 0)
+    ]
+    rows2.sort(key=lambda r: r["code"])
+    sections.append({"id": "table2", "title": "Anexa 1 — bilanț", "columns": ["La 1 ianuarie", "La 31 decembrie"], "rows": rows2})
+    rows3 = [
+        {"code": c, "label": LABELS["table3"].get(c, ""), "values": [data["previous"].get(c, 0), data["result"].get(c, 0)]}
+        for c in T3_ROWS if data["previous"].get(c, 0) or data["result"].get(c, 0)
+    ]
+    sections.append({"id": "table3", "title": "Anexa 2 — venituri și cheltuieli",
+                     "columns": ["Anul precedent", "Anul raportat"], "rows": rows3})  # fmt: skip
+
+    checks: list[dict] = []
+
+    def check(message: str, expected: int, actual: int, severity: str = "error") -> None:
+        checks.append({"message": message, "ok": expected == actual, "severity": severity,
+                       "expected": expected, "actual": actual})  # fmt: skip
+
+    for col, name in ((0, "început"), (3, "sfârșit")):
+        check(f"Anexa 3: suma rândurilor = total surse (sold la {name})", sum(t1[c][col] for c in ("010", "020", "030", "040", "050", "070", "080", "090", "100", "110", "120", "140", "150", "160", "170")), t1["200"][col])
+    for code, row in t1.items():
+        check(f"Anexa 3, rând {code}: sold început + majorări − diminuări = sold sfârșit", row[0] + row[1] - row[2], row[3])
+    for side, label in (("opening", "la 1 ianuarie"), ("closing", "la 31 decembrie")):
+        b = data[side]
+        check(f"Bilanț {label}: suma activelor = total activ", b["100"] + b["110"] + b["130"] + b["140"] + b["150"] + b["160"], b["190"])
+        check(f"Bilanț {label}: suma datoriilor curente = total", sum(b[c] for c in ("310", "320", "330", "340", "350", "360", "370", "380")), b["390"])
+        check(f"Bilanț {label}: activ = pasiv (bilanțul se închide)", b["190"], b["400"])
+    check("Excedentul din Anexa 2 = rândul 210 din bilanț", data["result"]["110"], data["closing"]["210"])
+    check("Total surse (Anexa 3) = mijloace cu destinație specială + fonduri", t1["060"][3] + t1["130"][3] + t1["180"][3], t1["200"][3])
+    # sold 537 din bilanț față de granturile din Anexa 3 (informativ: pot exista și alte finanțări)
+    check("Granturi nefolosite din Anexa 3 = rândul 310 din bilanț", t1["030"][3], data["closing"]["310"], "warning")
+    return {"sections": sections, "checks": checks, "balanced": all(c["ok"] for c in checks if c["severity"] == "error")}
+
+
 def _int(value: int) -> str:
     return str(value)
 

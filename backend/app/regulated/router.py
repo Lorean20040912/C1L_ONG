@@ -338,6 +338,15 @@ def export_xml(report_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context),
     )
 
 
+@router.get("/rsf2/preview")
+def preview_rsf2(year: int, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> dict:
+    """Previzualizarea RSF2: rândurile cu valori și sumele de control, înainte de descărcarea XML."""
+    if not 2000 <= year <= 2100:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Anul nu este valid")
+    org = db.get(Organization, ctx.organization_id)
+    return rsf2.preview(rsf2.compute(db, org, year))
+
+
 @router.get("/rsf2.xml")
 def export_rsf2(year: int, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> Response:
     """Situațiile financiare anuale (RSF2), XML în formatul exportului oficial; valorile vin din contabilitate."""
