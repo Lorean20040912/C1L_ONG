@@ -15,6 +15,14 @@ const DOC_LABELS: Record<string, string> = {
   fx_difference: "Diferențe de curs",
   membership_fee: "Cotizații",
   "month_close.depreciation": "Închiderea lunii: amortizarea",
+  "month_close.account_closing": "Închiderea lunii: conturile 6/7",
+  "month_close.allocation": "Închiderea lunii: repartizarea",
+  "month_close.fx": "Închiderea lunii: diferențe de curs",
+  "month_close.income": "Închiderea lunii: venituri",
+  bank_payment: "Plată din cont bancar",
+  bank_receipt: "Încasare pe cont bancar",
+  individual_payment: "Plată către persoană fizică",
+  payroll: "Salarii",
 };
 
 /** „funding=special_purpose; term=long” ↔ {funding: "special_purpose", term: "long"} */
@@ -159,6 +167,7 @@ export function RulesScreen() {
           </button>
         )}
       </div>
+      <div style={{ overflowX: "auto" }}>
       <table className="grid">
         <thead>
           <tr>
@@ -198,6 +207,7 @@ export function RulesScreen() {
           ))}
         </tbody>
       </table>
+      </div>
     </>
   );
 }

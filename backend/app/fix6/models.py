@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, ForeignKey, LargeBinary, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, Date, Index, ForeignKey, LargeBinary, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import DateTime
@@ -17,6 +17,7 @@ class FixedAssetEvent(Base):
     """Punerea în funcțiune sau casarea unui mijloc fix (status: posted / cancelled)."""
 
     __tablename__ = "fixed_asset_events"
+    __table_args__ = (Index("ix_fixed_asset_events_asset", "fixed_asset_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, **_ID)
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))

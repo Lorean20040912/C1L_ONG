@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, text
+from sqlalchemy import DateTime, Index, ForeignKey, Integer, Numeric, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,6 +14,7 @@ class TreasuryDoc(Base):
     nr., data, suma, valuta, contrapartida sunt în `documents`."""
 
     __tablename__ = "treasury_docs"
+    __table_args__ = (Index("ix_treasury_docs_org_kind", "organization_id", "kind"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
@@ -36,6 +37,7 @@ class TreasuryDoc(Base):
 
 class TreasuryDocLine(Base):
     __tablename__ = "treasury_doc_lines"
+    __table_args__ = (Index("ix_treasury_doc_lines_doc", "treasury_doc_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
