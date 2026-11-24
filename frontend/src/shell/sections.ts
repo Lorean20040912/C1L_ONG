@@ -10,7 +10,14 @@ export interface Section {
 
 export const SECTIONS: Section[] = [
   { id: "home", icon: "≡", title: "Principal" },
-  { id: "head", icon: "↗", title: "Conducătorului" },
+  {
+    id: "head",
+    icon: "↗",
+    title: "Conducătorului",
+    groups: {
+      Rapoarte: ["Execuția bugetului", "Balanța de verificare (OSV)", "Pachet pentru donator", "Verificarea contabilității"],
+    },
+  },
   {
     id: "bank",
     icon: "₿",
@@ -20,7 +27,15 @@ export const SECTIONS: Section[] = [
       Servicii: ["Import extras bancar", "Export ordine de plată", "e-Factura", "Curs BNM"],
     },
   },
-  { id: "sales", icon: "⬆", title: "Vânzări" },
+  {
+    id: "sales",
+    icon: "⬆",
+    title: "Vânzări",
+    groups: {
+      Documente: ["Încasări pe cont", "Încasări numerar"],
+      Rapoarte: ["TVA", "Cartea mare"],
+    },
+  },
   {
     id: "purch",
     icon: "⬇",
@@ -31,7 +46,12 @@ export const SECTIONS: Section[] = [
       Rapoarte: ["Datorii față de furnizori", "Achiziții pe granturi"],
     },
   },
-  { id: "stock", icon: "▦", title: "Depozit" },
+  {
+    id: "stock",
+    icon: "▦",
+    title: "Depozit",
+    groups: { Documente: ["Distribuirea stocurilor"], Rapoarte: ["Analiza contului"] },
+  },
   {
     id: "fa",
     icon: "▣",

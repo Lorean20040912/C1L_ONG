@@ -50,7 +50,7 @@ export function MyBasesPage() {
           <button className="b" onClick={() => setCreating((c) => !c)}>
             Bază nouă
           </button>
-          <button className="b" disabled title="În lucru: importul din 1C vine într-o etapă următoare">
+          <button className="b" disabled={!selected} title="Deschide baza aleasă la ecranul de import din 1C" onClick={() => selected && navigate(`/org/${selected}`, { state: { open: "Import din 1C" } })}>
             Importă din 1C
           </button>
         </div>

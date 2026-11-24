@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { ROLE_LABELS, type OrganizationBrief, type Workspace } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
@@ -71,13 +71,14 @@ import { PlaceholderScreen } from "./PlaceholderScreen";
 import { ProfileContext, useProfileLoader } from "./profile";
 import { SECTIONS } from "./sections";
 import { SectionPanel } from "./SectionPanel";
-import { ShellContext, type ShellApi, type Tab } from "./tabs";
+import { SCREEN_LINKS, ShellContext, type ShellApi, type Tab } from "./tabs";
 
 const HOME: Tab = { id: "home", title: "Pagina inițială", kind: "home", fixed: true };
 
 export function AppShell() {
   const { orgId = "" } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const [orgs, setOrgs] = useState<OrganizationBrief[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -92,8 +93,17 @@ export function AppShell() {
 
   // altă organizație = alt set de file (documentele deschise erau ale celeilalte)
   useEffect(() => {
+    // „Importă din 1C” din Bazele mele deschide direct ecranul respectiv
+    const title = (location.state as { open?: string } | null)?.open;
+    const kind = title ? SCREEN_LINKS[title] : undefined;
+    if (title && kind) {
+      setTabs([HOME, { id: kind, title, kind, key: kind }]);
+      setActive(kind);
+      return;
+    }
     setTabs([HOME]);
     setActive(HOME.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId]);
 
   const profile = useProfileLoader(orgId);
