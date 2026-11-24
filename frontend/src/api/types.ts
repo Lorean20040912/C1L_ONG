@@ -494,7 +494,7 @@ export interface BankFormat {
   id: string;
   bank_name: string;
   file_type: string;
-  direction: "import" | "export";
+  direction: "import_statement" | "export_payments";
   encoding: string;
   layout: Record<string, unknown>;
   is_standard: boolean;

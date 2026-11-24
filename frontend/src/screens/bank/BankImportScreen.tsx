@@ -36,7 +36,7 @@ export function BankImportScreen() {
 
   const loadHistory = () => api<BankImport[]>(`/organizations/${orgId}/bank-imports`).then(setHistory).catch(() => {});
   useEffect(() => {
-    api<BankFormat[]>(`/organizations/${orgId}/bank-formats?direction=import`).then(setFormats).catch(() => {});
+    api<BankFormat[]>(`/organizations/${orgId}/bank-formats?direction=import_statement`).then(setFormats).catch(() => {});
     loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId]);

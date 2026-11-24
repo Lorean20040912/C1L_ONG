@@ -29,7 +29,7 @@ export function PaymentExportScreen() {
 
   useEffect(() => {
     load();
-    api<BankFormat[]>(`/organizations/${orgId}/bank-formats?direction=export`).then(setFormats).catch(() => {});
+    api<BankFormat[]>(`/organizations/${orgId}/bank-formats?direction=export_payments`).then(setFormats).catch(() => {});
   }, [orgId, load]);
 
   const toggle = (id: string) =>

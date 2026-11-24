@@ -6,7 +6,7 @@ import { ADMIN_ROLES, can, useShell } from "../../shell/tabs";
 import { Messages, ReadOnlyNote } from "../admin/Messages";
 
 const FILE_TYPES = ["txt", "dbf", "dbo", "xml", "csv"];
-const EMPTY = { bank_name: "", file_type: "csv", direction: "import" as BankFormat["direction"], encoding: "cp1251", layout: "{}" };
+const EMPTY = { bank_name: "", file_type: "csv", direction: "import_statement" as BankFormat["direction"], encoding: "cp1251", layout: "{}" };
 
 /** Profiluri bănci: formatele de import al extraselor și de export al ordinelor de plată (cele standard se copiază, nu se modifică). */
 export function BankProfiles() {
@@ -75,7 +75,7 @@ export function BankProfiles() {
           {rows.map((f) => (
             <tr key={f.id}>
               <td>{f.bank_name}</td>
-              <td>{f.direction === "import" ? "import extras" : "export ordine"}</td>
+              <td>{f.direction === "import_statement" ? "import extras" : "export ordine"}</td>
               <td>{f.file_type}</td>
               <td>{f.encoding}</td>
               <td>{f.is_standard ? "standard" : "al organizației"}</td>
@@ -117,8 +117,8 @@ export function BankProfiles() {
             <input id="bp-name" value={form.bank_name} onChange={(e) => setForm({ ...form, bank_name: e.target.value })} />
             <label htmlFor="bp-dir">Direcția</label>
             <select id="bp-dir" value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value as BankFormat["direction"] })}>
-              <option value="import">import extras</option>
-              <option value="export">export ordine de plată</option>
+              <option value="import_statement">import extras</option>
+              <option value="export_payments">export ordine de plată</option>
             </select>
             <label htmlFor="bp-type">Tip fișier</label>
             <select id="bp-type" value={form.file_type} onChange={(e) => setForm({ ...form, file_type: e.target.value })}>
