@@ -4,22 +4,33 @@ Valorile se iau din contabilitate: bilanțul din soldurile conturilor (`account_
 31 decembrie, rezultatul financiar din înregistrările veniturilor (6) și cheltuielilor (7) ale anului, fără
 înregistrările de închidere (33x). Sumele sunt în lei întregi (rotunjire comercială).
 
-Corespondența cu rândurile formularului (ipoteze de lucru; formularul oficial nu se află în depozit):
-  table1 (active imobilizate; c4 cost la început, c5 cost la sfârșit, c6 uzura, c7 valoarea contabilă)
-    r030 ← 12x (cost) și 124/126..129 (amortizarea și ajustările); r110 ← 11x (cost) și 112 (amortizarea);
-    r060, r130, r180 = totaluri pe grupe; r200 = r060 + r130 + r180 + r190. Celelalte rânduri rămân 0.
-  table2 (bilanț; c4 = 01.01, c5 = 31.12)
-    r010 ← 11x net, r020 ← 12x net, r030 ← alte conturi din clasa 1, r100 = total active imobilizate;
-    r110 ← 21x, r130 ← 22x, r140 ← 23x (r141 = 234.4, creanțe pe granturi), r150 ← 24x, r160 ← alte din clasa 2,
-    r180 = total active curente, r190 = r100 + r180;
-    r200 ← 331/332 de la 1 ianuarie (rezultat reportat), r210 = rezultatul anului, r220 ← alte conturi din clasa 3
-    (fără 33 și 34), r260 = total capital propriu; r310 ← 341.2, r320 ← 341.3, r330 ← alte conturi 34,
-    r340 ← 521, r350 ← 531/533/534, r360 ← 535, r370 ← 537, r380 ← restul clasei 5 și clasa 4,
-    r390 = r310..r380, r400 = r260 + r390. Rândurile r010..r100 de la r090, r230..r250, r270..r300 rămân 0.
-  table3 (rezultatul financiar; c3 = anul precedent, c4 = anul raportat)
-    r010 = venituri statutare (r020 ← 616, r030 ← restul), r040 = venituri din activitatea economică,
-    r050 = cheltuieli ale activității economice, r060 = r040 − r050, r110 = total venituri − total cheltuieli.
-    Impozitul și celelalte rânduri (r070..r100) rămân 0.
+Elementele XML au numele formularului: `table1` = Anexa 3 (modificările surselor de finanțare; coloanele
+c4 sold la început, c5 majorări, c6 diminuări, c7 sold la sfârșit), `table2` = Anexa 1 (bilanț; c4 = 01.01,
+c5 = 31.12), `table3` = Anexa 2 (venituri și cheltuieli; c3 = anul precedent, c4 = anul raportat).
+Numărul rândurilor și valorile au fost confirmate cu o declarație reală depusă pentru 2025; corespondența
+cont → rând de mai jos este o ipoteză de lucru acolo unde declarația nu are sume (vezi DEZVOLTARE.md).
+
+  table1 (Anexa 3; soldul = creditul conturilor, majorări = rulaj creditor, diminuări = rulaj debitor)
+    r030 Granturi ← 537 și 425 cu proiect; r060 = r010..r050;
+    r110 Taxe de aderare și cotizații ← 425 fără proiect; r130 = r070..r120;
+    r150 Fond de active imobilizate ← 341.2; r160 Fond de autofinanțare ← 341.1/341.3/341.4, 33x și rezultatul
+    anului (excedentul anului majorează fondul înainte de închidere); r180 = r140..r170;
+    r200 = r060 + r130 + r180. Celelalte rânduri rămân 0.
+  table2 (Anexa 1, bilanț)
+    r010 ← 11x net, r020 ← 12x net, r030 ← alte conturi din clasa 1, r100 = r010..r090;
+    r110 ← 22x fără 225/226 (creanțe comerciale, avansuri acordate), r130 ← 226 (personal),
+    r140 ← 225 și 23x (r141 = 234.4, creanțe privind mijloacele cu destinație specială), r150 ← 24x (numerar),
+    r160 ← 21x și alte active circulante (25x..29x), r180 = r110..r170, r190 = r100 + r180;
+    r200 ← 33x de la 1 ianuarie (rezultat reportat), r210 = rezultatul anului (= table3 r110),
+    r220 ← restul clasei 3 (34x etc.), r260 = r200 + r210 + r220;
+    r270 ← 425, r290 ← alte conturi 4xx, r300 = r270..r290;
+    r310 ← 537 (mijloace cu destinație specială nefolosite), r320 ← 535, r330 ← 521..523, r340 ← 531,
+    r350 ← 532/533, r360 ← 534, r370 ← 51x, r380 ← restul clasei 5, r390 = r310..r380,
+    r400 = r260 + r300 + r390.
+  table3 (Anexa 2; c3 = anul precedent, c4 = anul raportat)
+    r010 ← venituri 616, r020 ← cheltuieli 716, r030 = r010 − r020, r040 ← alte venituri (restul clasei 6),
+    r050 ← alte cheltuieli (restul clasei 7), r060 = r030 + r040 − r050, r070..r100 = 0 (impozit etc.),
+    r110 = r060 − r070 − … − r100.
 """
 
 from collections import defaultdict
@@ -28,15 +39,15 @@ from decimal import ROUND_HALF_UP, Decimal
 from xml.etree import ElementTree as ET
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.catalogs.models import Account
 from app.core import fisc_xml as fx
-from app.posting.models import AccountTurnover
+from app.posting.models import AccountTurnover, EntryLine
 from app.regulated.sources import _class_filter, _lines
 from app.workspaces.models import Organization
 
-T1_ROWS = [f"{n:03d}" for n in range(10, 210, 10)]  # r010..r200
+T1_ROWS = [f"{n:03d}" for n in range(10, 210, 10)]  # r010..r200 (Anexa 3)
 T2_ROWS = [f"{n:03d}" for n in range(10, 410, 10)]  # r010..r400 (+ r141)
 T3_ROWS = [f"{n:03d}" for n in range(10, 120, 10)]  # r010..r110
 
@@ -68,20 +79,6 @@ def _sum(bal: dict[str, Decimal], *prefixes: str, exclude: tuple[str, ...] = ())
     )
 
 
-# conturile reglatoare (pasive) din planul 1C „Хозрасчетный”: 113/114/116/117 pentru imobilizările necorporale
-# (112 este costul, nu amortizarea), 124/126..129 pentru cele corporale
-_INTANGIBLE_CONTRA = ("113", "114", "116", "117")
-_TANGIBLE_CONTRA = ("124", "126", "127", "128", "129")
-
-
-def _fixed_assets(bal: dict[str, Decimal]) -> dict[str, tuple[Decimal, Decimal]]:
-    """Rând table1 → (cost, amortizare) la data soldului."""
-    return {
-        "030": (_sum(bal, "12", exclude=_TANGIBLE_CONTRA), -_sum(bal, *_TANGIBLE_CONTRA)),
-        "110": (_sum(bal, "11", exclude=_INTANGIBLE_CONTRA), -_sum(bal, *_INTANGIBLE_CONTRA)),
-    }
-
-
 def _balance_sheet(bal: dict[str, Decimal], opening_equity: Decimal | None, result: int | None) -> dict[str, int]:
     """Rândurile bilanțului la o dată (`bal` = solduri); `result` doar la sfârșitul anului."""
     r: dict[str, int] = {}
@@ -89,60 +86,112 @@ def _balance_sheet(bal: dict[str, Decimal], opening_equity: Decimal | None, resu
     r["020"] = _round(_sum(bal, "12"))
     r["030"] = _round(_sum(bal, "1", exclude=("11", "12")))
     r["100"] = r["010"] + r["020"] + r["030"]
-    r["110"] = _round(_sum(bal, "21"))
-    r["130"] = _round(_sum(bal, "22"))
-    r["140"] = _round(_sum(bal, "23"))
+    r["110"] = _round(_sum(bal, "22", exclude=("225", "226")))
+    r["130"] = _round(_sum(bal, "226"))
+    r["140"] = _round(_sum(bal, "225", "23"))
     r["141"] = _round(_sum(bal, "234.4"))
     r["150"] = _round(_sum(bal, "24"))
-    r["160"] = _round(_sum(bal, "2", exclude=("21", "22", "23", "24")))
+    r["160"] = _round(_sum(bal, "21", "25", "26", "27", "28", "29"))
     r["180"] = r["110"] + r["130"] + r["140"] + r["150"] + r["160"]
     r["190"] = r["100"] + r["180"]
-    r["220"] = -_round(_sum(bal, "3", exclude=("33", "34")))
-    retained = -_round(opening_equity) if opening_equity is not None else 0
-    r["200"] = retained
+    r["220"] = -_round(_sum(bal, "3", exclude=("33",)))
+    r["200"] = -_round(opening_equity) if opening_equity is not None else 0
     r["210"] = result or 0
     r["260"] = r["200"] + r["210"] + r["220"]
-    r["310"] = -_round(_sum(bal, "341.2"))
-    r["320"] = -_round(_sum(bal, "341.3"))
-    r["330"] = -_round(_sum(bal, "34", exclude=("341.2", "341.3")))
-    r["340"] = -_round(_sum(bal, "521"))
-    r["350"] = -_round(_sum(bal, "531", "533", "534"))
-    r["360"] = -_round(_sum(bal, "535"))
-    r["370"] = -_round(_sum(bal, "537"))
-    r["380"] = -_round(_sum(bal, "4", "5", exclude=("521", "531", "533", "534", "535", "537")))
+    r["270"] = -_round(_sum(bal, "425"))
+    r["290"] = -_round(_sum(bal, "4", exclude=("425",)))
+    r["300"] = r["270"] + r["290"]
+    r["310"] = -_round(_sum(bal, "537"))
+    r["320"] = -_round(_sum(bal, "535"))
+    r["330"] = -_round(_sum(bal, "521", "522", "523"))
+    r["340"] = -_round(_sum(bal, "531"))
+    r["350"] = -_round(_sum(bal, "532", "533"))
+    r["360"] = -_round(_sum(bal, "534"))
+    r["370"] = -_round(_sum(bal, "51"))
+    r["380"] = -_round(_sum(bal, "5", exclude=("51", "521", "522", "523", "531", "532", "533", "534", "535", "537")))
     r["390"] = sum(r[k] for k in ("310", "320", "330", "340", "350", "360", "370", "380"))
-    r["400"] = r["260"] + r["390"]
+    r["400"] = r["260"] + r["300"] + r["390"]
     return r
 
 
 def _result(db: Session, organization_id, year: int) -> dict[str, int]:
     """Rezultatul financiar al anului: rândurile table3 pentru `year`."""
-    statutory_special = statutory_other = economic_income = economic_expense = Decimal(0)
+    special_income = other_income = special_expense = other_expense = Decimal(0)
     for line in _lines(db, organization_id, date(year, 1, 1), date(year, 12, 31), _class_filter(("6", "7"), ("6", "7"))):
         if (inc := line.income()) is not None:
             account, amount = inc
-            if line.activity(account) == "economic":
-                economic_income += amount
-            elif account.startswith("616"):
-                statutory_special += amount
+            if account.startswith("616"):
+                special_income += amount
             else:
-                statutory_other += amount
+                other_income += amount
         if (exp := line.expense()) is not None:
             account, amount = exp
-            if line.activity(account) == "economic":
-                economic_expense += amount
-    total_expense = Decimal(0)
-    for line in _lines(db, organization_id, date(year, 1, 1), date(year, 12, 31), _class_filter(("7",), ("7",))):
-        if (exp := line.expense()) is not None:
-            total_expense += exp[1]
-    r = {
-        "020": _round(statutory_special), "030": _round(statutory_other),
-        "040": _round(economic_income), "050": _round(economic_expense),
-    }  # fmt: skip
-    r["010"] = r["020"] + r["030"]
-    r["060"] = r["040"] - r["050"]
-    r["110"] = r["010"] + r["040"] - _round(total_expense)
+            if account.startswith("716"):
+                special_expense += amount
+            else:
+                other_expense += amount
+    r = {"010": _round(special_income), "020": _round(special_expense),
+         "040": _round(other_income), "050": _round(other_expense)}  # fmt: skip
+    r["030"] = r["010"] - r["020"]
+    r["060"] = r["030"] + r["040"] - r["050"]
+    for code in ("070", "080", "090", "100"):
+        r[code] = 0
+    r["110"] = r["060"]
     return r
+
+
+def _fund_row(code: str, has_grant: bool) -> str | None:
+    """Rândul Anexei 3 al unui cont de finanțare/fond (None = nu face parte din Anexa 3)."""
+    if code.startswith("537") or (code.startswith("425") and has_grant):
+        return "030"
+    if code.startswith("425"):
+        return "110"
+    if code.startswith("341.2"):
+        return "150"
+    return None
+
+
+def _equity_group(code: str) -> bool:
+    """Conturile fondului de autofinanțare: alte fonduri (341.x), rezultatul reportat (33x) și veniturile/cheltuielile."""
+    return code.startswith(("341", "33", "6", "7")) and not code.startswith("341.2")
+
+
+def _sources_of_financing(db: Session, organization_id, year: int) -> dict[str, tuple[int, int, int, int]]:
+    """Anexa 3: rând → (sold început, majorări, diminuări, sold sfârșit), din înregistrările contabile."""
+    start, end = date(year, 1, 1), date(year, 12, 31)
+    debit, credit = aliased(Account), aliased(Account)
+    query = (
+        select(EntryLine.entry_date, EntryLine.amount, EntryLine.grant_id, debit.code, credit.code)
+        .join(debit, debit.id == EntryLine.debit_account_id)
+        .join(credit, credit.id == EntryLine.credit_account_id)
+        .where(EntryLine.organization_id == organization_id, EntryLine.entry_date <= end)
+    )
+    opening: dict[str, Decimal] = defaultdict(Decimal)
+    increase: dict[str, Decimal] = defaultdict(Decimal)
+    decrease: dict[str, Decimal] = defaultdict(Decimal)
+    equity_open = equity_end = Decimal(0)
+    for entry_date, amount, grant_id, debit_code, credit_code in db.execute(query).all():
+        for code, sign in ((credit_code, 1), (debit_code, -1)):
+            if (row := _fund_row(code, grant_id is not None)) is not None:
+                if entry_date < start:
+                    opening[row] += sign * amount
+                elif sign > 0:
+                    increase[row] += amount
+                else:
+                    decrease[row] += amount
+            if _equity_group(code):
+                equity_end += sign * amount
+                if entry_date < start:
+                    equity_open += sign * amount
+    rows: dict[str, tuple[int, int, int, int]] = {}
+    for row in ("030", "110", "150"):
+        o, i, d = _round(opening[row]), _round(increase[row]), _round(decrease[row])
+        rows[row] = (o, i, d, o + i - d)
+    # fondul de autofinanțare: soldul crește cu excedentul anului chiar înainte de închiderea lui în 33x
+    o, e = _round(equity_open), _round(equity_end)
+    change = e - o
+    rows["160"] = (o, max(change, 0), max(-change, 0), e)
+    return rows
 
 
 def compute(db: Session, org: Organization, year: int) -> dict:
@@ -151,19 +200,13 @@ def compute(db: Session, org: Organization, year: int) -> dict:
     closing = _balances(db, org.id, None, end)
     result = _result(db, org.id, year)
     previous = _result(db, org.id, year - 1)
-    table1: dict[str, tuple[int, int, int, int]] = {}
-    for code in T1_ROWS:
-        table1[code] = (0, 0, 0, 0)
-    open_fa, close_fa = _fixed_assets(opening), _fixed_assets(closing)
-    for code in close_fa:
-        cost0 = _round(open_fa[code][0])
-        cost1, amort = _round(close_fa[code][0]), _round(close_fa[code][1])
-        table1[code] = (cost0, cost1, amort, cost1 - amort)
+    table1: dict[str, tuple[int, int, int, int]] = {code: (0, 0, 0, 0) for code in T1_ROWS}
+    table1.update(_sources_of_financing(db, org.id, year))
     groups = {"060": ("010", "020", "030", "040", "050"), "130": ("070", "080", "090", "100", "110", "120"),
               "180": ("140", "150", "160", "170")}  # fmt: skip
     for total, members in groups.items():
         table1[total] = tuple(sum(table1[m][i] for m in members) for i in range(4))  # type: ignore[assignment]
-    table1["200"] = tuple(sum(table1[k][i] for k in ("060", "130", "180", "190")) for i in range(4))  # type: ignore[assignment]
+    table1["200"] = tuple(sum(table1[k][i] for k in ("060", "130", "180")) for i in range(4))  # type: ignore[assignment]
 
     equity_start = _sum(opening, "33")
     return {
