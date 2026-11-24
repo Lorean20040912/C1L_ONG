@@ -17,5 +17,15 @@ def test_planul_demonstrativ_acopera_conturile_regulilor(db):
 
 
 def test_migrarea_fix9_adauga_casa(db):
-    n = db.scalar(text("SELECT count(*) FROM alembic_version WHERE version_num = 'fix9_0001'"))
-    assert n == 1
+    """Migrarea fix9_0001 face parte din istoricul aplicat (nu neapărat ultima: după ea vin alte migrări)."""
+    import os
+
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg = Config(os.path.join(backend, "alembic.ini"))
+    cfg.set_main_option("script_location", os.path.join(backend, "alembic"))
+    heads = set(db.scalars(text("SELECT version_num FROM alembic_version")))
+    applied = {r.revision for h in heads for r in ScriptDirectory.from_config(cfg).walk_revisions(base="base", head=h)}
+    assert "fix9_0001" in applied
