@@ -62,14 +62,14 @@ def test_rsf2_valori_din_contabilitate(client, ong):
     user, org = ong
     root = ET.fromstring(_xml(client, org, user, 2026))
     t1, t2, t3 = (int_map(root.find(f"{t}/row")) for t in ("table1", "table2", "table3"))
-    # mijloace fixe: cost 1000 (și la început), amortizare 100 la sfârșit, valoarea contabilă 900
-    assert [t1[f"r030c{c}"] for c in (4, 5, 6, 7)] == [1000, 1000, 100, 900]
-    # imobilizări necorporale (planul 1C): costul pe 112, amortizarea pe 113
-    assert [t1[f"r110c{c}"] for c in (4, 5, 6, 7)] == [300, 300, 50, 250]
-    assert t1["r200c7"] == t1["r060c7"] + t1["r130c7"] + t1["r180c7"] + t1["r190c7"] == 900 + 250
-    # rezultatul: 2000 venituri economice − 800 cheltuieli, statutar 500
-    assert (t3["r040c4"], t3["r050c4"], t3["r060c4"]) == (2000, 800, 1200)
-    assert (t3["r020c4"], t3["r110c4"]) == (500, 1700)
+    # Anexa 3: fondul de active imobilizate 341.2 — 1000 la început, amortizarea (100 + 50) îl diminuează
+    assert [t1[f"r150c{c}"] for c in (4, 5, 6, 7)] == [1000, 0, 150, 850]
+    # fondul de autofinanțare: excedentul anului (1700) majorează fondul, totalul surselor = suma rândurilor
+    assert [t1[f"r160c{c}"] for c in (4, 5, 6, 7)] == [0, 1700, 0, 1700]
+    assert t1["r200c7"] == t1["r060c7"] + t1["r130c7"] + t1["r180c7"] == 850 + 1700
+    # Anexa 2: venituri 616 = 500, alte venituri 2000, alte cheltuieli 800 → excedent 1700
+    assert (t3["r040c4"], t3["r050c4"], t3["r060c4"]) == (2000, 800, 1700)
+    assert (t3["r010c4"], t3["r020c4"], t3["r030c4"], t3["r110c4"]) == (500, 0, 500, 1700)
     assert t3["r110c3"] == 0  # anul precedent
     # bilanț: totalul activelor = totalul pasivelor, rezultatul anului în r210
     assert t2["r210c5"] == 1700
