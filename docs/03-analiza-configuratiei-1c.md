@@ -88,3 +88,15 @@ Formulele de calcul ale impozitelor sunt păstrate în 1C ca **date** (registrul
 2. Structura celulelor din 5-CON → `report_forms.structure` (IPC21 — gata: [05-specificatie-IPC21.md](05-specificatie-IPC21.md)).
 
 Lista completă a câmpurilor pentru obiectele preluate: [04-anexa-campuri-1c.md](04-anexa-campuri-1c.md).
+
+## Configurația `.cf` (v3.0.63.11) — planul de conturi, TVA, rapoarte anuale
+
+Sursa: fișierul de configurație `1Cv8.cf` (container 1C), despachetat cu `v8unpack`; planul de conturi din `ChartOfAccounts/Хозрасчетный/Предустановленные данные.bin` (856 conturi și subconturi, cu tip activ/pasiv/bifuncțional). Fișierul nu se păstrează în depozit; codurile și tipurile sunt în `backend/tests/data/plan_conturi_1c.json`.
+
+Corecturi făcute în aplicație (migrarea `fix4_0001`, teste în `tests/test_plan_conturi_1c.py`):
+
+- fondurile ONG sunt **341.2** (active imobilizate) și **341.3** (autofinanțare); 341.1 = contribuții inițiale, 341.4 = alte fonduri — înainte erau „3411/3412” în reguli, șabloane, conturi și RSF2;
+- șablonul `general`: 111/113/114 → 112/123/124, 226 (creanțe buget) → 225, 522 → 523 (avansuri primite), 532 → 533, TVA 535 → 534.4, 333 pasiv; `ngo` primește 112, 113, 341.1, 341.4; șabloanele sunt versiunea 2;
+- amortizarea imobilizărilor necorporale este 113 (+114, 116, 117), nu 112 (112 e costul) — corectat în RSF2 (table1 r110);
+- cote TVA în `tax_rates`: 20%, 8%, 0% (enumerarea `СтавкиНДС` mai conține 6/10/12/15/18% istorice și variantele „avans” și „import”; nu s-au preluat). Codul CPV și registrul facturilor TVA nu sunt în configurație ca date — nepreluate;
+- toate conturile din regulile standard (`posting_rules`) există în planul 1C (test).

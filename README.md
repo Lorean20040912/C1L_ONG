@@ -13,6 +13,69 @@ Proiect pentru examenul **Programare Web 2** și teza de licență.
 - interfață de tip 1C 8.3: secțiuni, jurnale, formulare, înregistrare Dt/Kt, balanța de verificare;
 - migrează toate datele existente din 1C (OData / XML) cu reconcilierea balanței.
 
+## Pornire locală
+
+Cerințe: Docker cu Docker Compose v2.
+
+```bash
+cp .env.example .env        # opțional: fără .env se folosesc valorile de dezvoltare și contul demo
+docker compose up --build
+```
+
+Aplicația: <http://localhost:8080>. La pornire, serviciul `api` rulează migrarea Alembic și, dacă în `.env` sunt setate `DEMO_EMAIL` / `DEMO_PASSWORD`, creează utilizatorul demonstrativ (implicit `demo@contahub.local` / `demo12345`) cu o bază „AO „Exemplu Verde””.
+
+| Serviciu | Rol |
+|----------|-----|
+| `nginx` | servește interfața React și trimite `/api/` către API |
+| `api` | FastAPI (Python 3.12): autentificare, „Bazele mele”, documente, motorul de înregistrare |
+| `worker` | sarcinile lungi din coada Redis (RQ) |
+| `postgres` | PostgreSQL 16 — datele (volumul `pgdata`) |
+| `redis` | coada de sarcini |
+
+Documentația API (Swagger) e la <http://localhost:8000/docs> când API-ul rulează local (vezi mai jos).
+
+### Dezvoltare fără Docker
+
+```bash
+cd backend
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install -r requirements-dev.txt
+export DATABASE_URL=postgresql+psycopg://contahub:contahub@localhost:5432/contahub
+alembic upgrade head
+DEMO_EMAIL=demo@contahub.local DEMO_PASSWORD=demo12345 python -m app.seed
+uvicorn app.main:app --reload          # http://localhost:8000/docs
+```
+
+```bash
+cd frontend
+npm install
+npm run dev                             # http://localhost:5173, /api -> localhost:8000
+```
+
+### Teste
+
+```bash
+cd backend
+export TEST_DATABASE_URL=postgresql+psycopg://contahub:contahub@localhost:5432/contahub_test
+pytest
+```
+
+Testele rulează pe un PostgreSQL real (baza de test se recreează la fiecare rulare). GitHub Actions rulează testele backend și build-ul frontend la fiecare push.
+
+## Structura codului
+
+```
+backend/
+  app/<modul>/      modulele din docs/02-arhitectura.md §11 (models, router, servicii)
+  app/posting/      motorul de înregistrare: entry_lines + account_turnovers într-o tranzacție
+  alembic/          migrările bazei de date
+  tests/            pytest
+frontend/
+  src/shell/        AppShell: bara de sus, secțiunile, filele
+  src/pages/        login, „Bazele mele”
+docker-compose.yml
+```
+
 ## Documentație
 | Fișier | Conținut |
 |--------|----------|
