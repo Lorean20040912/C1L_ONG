@@ -44,11 +44,41 @@ export function hasTokens(): boolean {
   return read(REFRESH) !== null;
 }
 
+interface ValidationItem {
+  type?: string;
+  loc?: (string | number)[];
+  msg: string;
+  ctx?: Record<string, unknown>;
+}
+
+/** Mesaj de validare FastAPI/pydantic în română, cu numele câmpului (fără prefixul „body”). */
+function validationMessage(d: ValidationItem): string {
+  const where = (d.loc ?? []).filter((x) => x !== "body" && x !== "query").map((x) => (typeof x === "number" ? `rândul ${x + 1}` : x)).join(" · ");
+  const c = d.ctx ?? {};
+  const t = d.type ?? "";
+  let what: string;
+  if (t === "missing") what = "este obligatoriu";
+  else if (t === "greater_than") what = `trebuie să fie mai mare ca ${c.gt}`;
+  else if (t === "greater_than_equal") what = `trebuie să fie cel puțin ${c.ge}`;
+  else if (t === "less_than") what = `trebuie să fie mai mic ca ${c.lt}`;
+  else if (t === "less_than_equal") what = `trebuie să fie cel mult ${c.le}`;
+  else if (t === "string_too_short") what = Number(c.min_length) <= 1 ? "nu poate fi gol" : `trebuie să aibă cel puțin ${c.min_length} caractere`;
+  else if (t === "string_too_long") what = `trebuie să aibă cel mult ${c.max_length} caractere`;
+  else if (t === "too_short") what = "trebuie să conțină cel puțin un element";
+  else if (t === "uuid_parsing") what = "are o valoare nevalidă (alegeți din listă)";
+  else if (t.startsWith("date") || t.includes("datetime")) what = "nu este o dată validă";
+  else if (t === "enum" || t === "literal_error") what = "are o valoare nepermisă";
+  else if (t.startsWith("int") || t.startsWith("float") || t.startsWith("decimal") || t.includes("number")) what = "nu este un număr valid";
+  else if (t === "string_pattern_mismatch") what = "are un format nevalid";
+  else what = "este nevalid";
+  return where ? `${where}: ${what}` : what[0].toUpperCase() + what.slice(1);
+}
+
 async function errorMessage(res: Response): Promise<string> {
   try {
     const body = await res.json();
     if (typeof body.detail === "string") return body.detail;
-    if (Array.isArray(body.detail)) return body.detail.map((d: { msg: string }) => d.msg).join("; ");
+    if (Array.isArray(body.detail)) return body.detail.map(validationMessage).join("; ");
   } catch {
     // răspuns fără JSON
   }
