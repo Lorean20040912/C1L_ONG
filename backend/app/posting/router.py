@@ -158,8 +158,6 @@ DEDICATED_ROUTES = {
     DocumentType.invoice: "invoices",
     DocumentType.payment_order: "payment-orders",
     DocumentType.individual_payment: "individual-payments",
-    DocumentType.act: "treasury/docs",
-    DocumentType.receipt: "treasury/docs",
 }
 
 
@@ -170,8 +168,13 @@ def _document(db: Session, ctx: OrgContext, document_id: uuid.UUID) -> Document:
     return doc
 
 
-def _refuse_dedicated(doc: Document, action: str) -> None:
+def _refuse_dedicated(db: Session, doc: Document, action: str) -> None:
     route = DEDICATED_ROUTES.get(doc.type)
+    if route is None:
+        from app.treasury.models import TreasuryDoc  # documentele de bancă/casă, deconturile și actele au ruta lor
+
+        if db.scalar(select(TreasuryDoc.id).where(TreasuryDoc.document_id == doc.id)) is not None:
+            route = "treasury/docs"
     if route:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Documentul se înregistrează prin /{route}/{doc.id}/{action}")
 
@@ -222,7 +225,7 @@ def post(
 ) -> list[EntryLine]:
     """Înregistrează documentul: după regulile din posting_rules (operations) sau manual (lines)."""
     ctx.require(POSTING_ROLES)
-    _refuse_dedicated(_document(db, ctx, document_id), "post")
+    _refuse_dedicated(db, _document(db, ctx, document_id), "post")
     try:
         rule_refs = None
         if body.operations is not None:
@@ -255,7 +258,7 @@ def post(
 @router.post("/documents/{document_id}/unpost", status_code=status.HTTP_204_NO_CONTENT)
 def unpost(document_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)) -> None:
     ctx.require(POSTING_ROLES)
-    _refuse_dedicated(_document(db, ctx, document_id), "unpost")
+    _refuse_dedicated(db, _document(db, ctx, document_id), "unpost")
     try:
         unpost_document(db, organization_id=ctx.organization_id, document_id=document_id, user_id=ctx.user.id)
     except PostingError as exc:
