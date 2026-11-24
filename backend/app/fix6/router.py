@@ -3,7 +3,7 @@ surse de documente, cataloage (subdiviziuni, contrapartide), finanțare primită
 
 import re
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -506,6 +506,7 @@ class SourceIn(BaseModel):
     location: str = Field(min_length=1)
     note: str | None = None
     is_active: bool = True
+    sync_interval_minutes: int = Field(default=60, ge=0, le=10080)  # 0 = doar manual
 
     @field_validator("kind")
     @classmethod
@@ -523,6 +524,13 @@ class SourceIn(BaseModel):
 class SourceOut(SourceIn):
     id: uuid.UUID
     documents: int = 0
+    last_sync_at: datetime | None = None
+    last_status: str | None = None
+    last_error: str | None = None
+    last_found: int | None = None
+    last_added: int | None = None
+    last_duplicates: int | None = None
+    last_failed: int | None = None
 
 
 def _check_source(body: SourceIn) -> None:
@@ -539,7 +547,10 @@ def _source_out(db: Session, s: DocumentSource) -> SourceOut:
     from app.fix6.models import ScannedFile
 
     n = db.scalar(select(func.count()).select_from(ScannedFile).where(ScannedFile.source_id == s.id)) or 0
-    return SourceOut(id=s.id, kind=s.kind, name=s.name, location=s.location, note=s.note, is_active=s.is_active, documents=n)
+    return SourceOut(id=s.id, kind=s.kind, name=s.name, location=s.location, note=s.note, is_active=s.is_active,
+                     sync_interval_minutes=s.sync_interval_minutes, documents=n, last_sync_at=s.last_sync_at,
+                     last_status=s.last_status, last_error=s.last_error, last_found=s.last_found, last_added=s.last_added,
+                     last_duplicates=s.last_duplicates, last_failed=s.last_failed)  # fmt: skip
 
 
 @router.get("/document-sources", response_model=list[SourceOut])
@@ -565,6 +576,23 @@ def _source(db: Session, ctx: OrgContext, source_id: uuid.UUID) -> DocumentSourc
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Sursa nu a fost găsită")
     return s
+
+
+@router.post("/document-sources/{source_id}/sync", response_model=SourceOut)
+def sync_now(source_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context), db: Session = Depends(get_db)):
+    """„Sincronizează acum”: scanează sursa imediat; rezultatul și erorile rămân în starea sursei."""
+    from app.fix6.sync import SyncError, sync_source
+
+    ctx.require(ADMIN_ROLES)
+    s = _source(db, ctx, source_id)
+    if not s.is_active:
+        raise _422("Sursa este dezactivată; activați-o înainte de sincronizare")
+    try:
+        sync_source(db, s.id, user_id=ctx.user.id)
+    except SyncError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+    db.refresh(s)
+    return _source_out(db, s)
 
 
 @router.put("/document-sources/{source_id}", response_model=SourceOut)

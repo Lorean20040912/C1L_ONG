@@ -59,6 +59,14 @@ export interface DocSource {
   note: string | null;
   is_active: boolean;
   documents: number;
+  sync_interval_minutes: number;
+  last_sync_at: string | null;
+  last_status: "ok" | "error" | "skipped" | null;
+  last_error: string | null;
+  last_found: number | null;
+  last_added: number | null;
+  last_duplicates: number | null;
+  last_failed: number | null;
 }
 
 export interface Department {

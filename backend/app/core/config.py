@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     ai_model: str = "claude-sonnet-5-5"
 
+    # sincronizarea surselor de documente (nicio cheie reală în depozit: totul din mediu)
+    # rădăcina permisă pentru sursele „folder pe server”; goală = folderele de pe server nu se sincronizează
+    document_sync_root: str | None = None
+    # cheia API Google (opțională) pentru foldere Drive partajate prin link public; goală = Drive nu se sincronizează
+    google_api_key: str | None = None
+    # la câte minute worker-ul verifică sursele scadente (0 = sincronizare automată oprită)
+    document_sync_tick_minutes: int = 15
+
     # utilizatorul demonstrativ creat de `python -m app.seed` (doar pentru dezvoltare)
     demo_email: str | None = None
     demo_password: str | None = None

@@ -10,7 +10,12 @@ const KINDS: Record<DocSource["kind"], { label: string; hint: string }> = {
   local_agent: { label: "Folder local (prin agent)", hint: "C:\\Scanări\\Facturi" },
   server_folder: { label: "Folder pe server", hint: "/srv/scanari/organizatia" },
 };
-const EMPTY = { kind: "google_drive" as DocSource["kind"], name: "", location: "", note: "", is_active: true };
+const EMPTY = { kind: "google_drive" as DocSource["kind"], name: "", location: "", note: "", is_active: true, sync_interval_minutes: 60 };
+const STATUS: Record<string, string> = { ok: "sincronizată", error: "eroare", skipped: "nu se scanează" };
+
+function when(iso: string | null): string {
+  return iso ? new Date(iso).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" }) : "—";
+}
 
 /** Surse de documente: de unde se preiau scanurile — Google Drive, folder local prin agent sau folder pe server. */
 export function DocumentSources() {
@@ -40,9 +45,17 @@ export function DocumentSources() {
     });
   const toggle = (s: DocSource) =>
     run(async () => {
-      await api(`${base}/${s.id}`, { method: "PUT", body: { kind: s.kind, name: s.name, location: s.location, note: s.note, is_active: !s.is_active } });
+      await api(`${base}/${s.id}`, { method: "PUT", body: { kind: s.kind, name: s.name, location: s.location, note: s.note, is_active: !s.is_active, sync_interval_minutes: s.sync_interval_minutes } });
       load();
       return s.is_active ? "Sursa a fost dezactivată." : "Sursa a fost activată.";
+    });
+  const syncNow = (s: DocSource) =>
+    run(async () => {
+      const out = await api<DocSource>(`${base}/${s.id}/sync`, { method: "POST" });
+      load();
+      if (out.last_status === "error") throw new Error(`${out.name}: ${out.last_error ?? "eroare la sincronizare"}`);
+      if (out.last_status === "skipped") return out.last_error ?? "Sursa nu se scanează de pe server.";
+      return `Sincronizat: ${out.last_added} fișiere noi, ${out.last_duplicates} duplicate (din ${out.last_found} găsite).`;
     });
   const remove = (s: DocSource) =>
     run(async () => {
@@ -64,6 +77,7 @@ export function DocumentSources() {
             <th>Tipul</th>
             <th>Locația</th>
             <th className="num">Documente</th>
+            <th>Ultima sincronizare</th>
             <th>Activă</th>
             <th />
           </tr>
@@ -75,11 +89,32 @@ export function DocumentSources() {
               <td>{KINDS[s.kind].label}</td>
               <td>{s.location}</td>
               <td className="num">{s.documents}</td>
+              <td>
+                {when(s.last_sync_at)}
+                {s.last_status && (
+                  <>
+                    {" "}
+                    <span className={s.last_status === "error" ? "late" : "muted"}>
+                      {STATUS[s.last_status] ?? s.last_status}
+                      {s.last_status !== "skipped" && s.last_found !== null ? ` — ${s.last_added} noi, ${s.last_duplicates} duplicate${s.last_failed ? `, ${s.last_failed} cu erori` : ""}` : ""}
+                    </span>
+                  </>
+                )}
+                {s.last_error && s.last_status !== "skipped" && <div className="late" style={{ whiteSpace: "pre-line" }}>{s.last_error}</div>}
+                <div className="muted">{s.sync_interval_minutes > 0 ? `automat la ${s.sync_interval_minutes} min` : "doar manual"}</div>
+              </td>
               <td>{s.is_active ? "da" : "nu"}</td>
               <td>
                 {editable && (
                   <>
-                    <button className="b" onClick={() => { setEditId(s.id); setForm({ kind: s.kind, name: s.name, location: s.location, note: s.note ?? "", is_active: s.is_active }); }}>
+                    {s.kind !== "local_agent" && (
+                      <>
+                        <button className="b primary" onClick={() => syncNow(s)} disabled={busy || !s.is_active}>
+                          Sincronizează acum
+                        </button>{" "}
+                      </>
+                    )}
+                    <button className="b" onClick={() => { setEditId(s.id); setForm({ kind: s.kind, name: s.name, location: s.location, note: s.note ?? "", is_active: s.is_active, sync_interval_minutes: s.sync_interval_minutes }); }}>
                       Modifică
                     </button>{" "}
                     <button className="b" onClick={() => toggle(s)} disabled={busy}>
@@ -95,13 +130,17 @@ export function DocumentSources() {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="muted">
+              <td colSpan={7} className="muted">
                 Nu sunt surse de documente.
               </td>
             </tr>
           )}
         </tbody>
       </table>
+      <p className="footer-note">
+        Sursele active se scanează automat la intervalul ales (worker-ul verifică periodic); fișierele noi (PDF, PNG, JPEG) intră în „Documente scanate”, cele cu același conținut se sar. Folderul de pe server
+        trebuie să fie în rădăcina permisă de administratorul serverului (variabila DOCUMENT_SYNC_ROOT); Google Drive cere un folder partajat prin link și cheia GOOGLE_API_KEY pe server.
+      </p>
       {editable && (
         <section>
           <h2>{editId ? "Modificare" : "Sursă nouă"}</h2>
@@ -118,6 +157,8 @@ export function DocumentSources() {
             <input id="ds-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <label htmlFor="ds-loc">Linkul / calea</label>
             <input id="ds-loc" value={form.location} placeholder={KINDS[form.kind].hint} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+            <label htmlFor="ds-int">Sincronizare automată (minute, 0 = doar manual)</label>
+            <input id="ds-int" className="num" type="number" min={0} max={10080} value={form.sync_interval_minutes} onChange={(e) => setForm({ ...form, sync_interval_minutes: Math.max(0, Number(e.target.value) || 0) })} />
             <label htmlFor="ds-note">Observații</label>
             <input id="ds-note" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
           </div>

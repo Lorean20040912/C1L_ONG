@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, Index, ForeignKey, LargeBinary, Numeric, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, Date, Index, ForeignKey, Integer, LargeBinary, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import DateTime
@@ -83,6 +83,15 @@ class DocumentSource(Base):
     note: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), **_NOW)
+    # sincronizarea automată (fixb_0001): 0 = doar manual
+    sync_interval_minutes: Mapped[int] = mapped_column(Integer, server_default=text("60"))
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String)  # ok / error / running / skipped
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_found: Mapped[int | None] = mapped_column(Integer)
+    last_added: Mapped[int | None] = mapped_column(Integer)
+    last_duplicates: Mapped[int | None] = mapped_column(Integer)
+    last_failed: Mapped[int | None] = mapped_column(Integer)
 
 
 class ScannedFile(Base):

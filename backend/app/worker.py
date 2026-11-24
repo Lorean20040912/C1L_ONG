@@ -25,6 +25,12 @@ def ping() -> str:
 
 
 def main() -> None:
+    from app.fix6.sync import schedule_next
+
+    try:
+        schedule_next(first=True)  # sincronizarea surselor de documente: prima verificare la pornire
+    except Exception:  # noqa: BLE001 - worker-ul pornește și fără sincronizare
+        pass
     Worker([QUEUE_NAME], connection=connection()).work(with_scheduler=True)
 
 
