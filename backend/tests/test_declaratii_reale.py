@@ -160,3 +160,35 @@ def test_5con_trimestrul_iv_2025(client, declaratie):
     for tag, value in (("R010", "286.0"), ("R040", "286.5"), ("R050", "77.4"), ("R070", "98.1"), ("R100", "77.5"),
                        ("R110", "28.1"), ("R120", "5.4"), ("R230", "5.4")):  # fmt: skip
         assert f"<CAP1_{tag}_C1>{value}</CAP1_{tag}_C1>".encode() in xml.content, tag
+
+
+def test_previzualizare_rsf2_cu_sume_de_control(client, declaratie):
+    user, org = declaratie
+    r = client.get(f"/organizations/{org.id}/reports/rsf2/preview?year=2025", headers=auth_headers(user))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["balanced"] is True and all(c["ok"] for c in body["checks"])
+    rows = {s["id"]: {x["code"]: x["values"] for x in s["rows"]} for s in body["sections"]}
+    assert rows["table1"]["030"] == [0, 793999, 341875, 452124]
+    assert rows["table2"]["400"] == [0, 476734] and "120" not in rows["table2"]
+
+
+def test_previzualizare_avertizeaza_bilant_neinchis(client, db, declaratie):
+    user, org = declaratie
+    from app.catalogs.models import Account
+    from sqlalchemy import select
+
+    acc = {a.code: a for a in db.scalars(select(Account).where(Account.organization_id == org.id))}
+    doc = Document(organization_id=org.id, type=DocumentType.other, doc_number="X1", doc_date=date(2025, 12, 1))
+    db.add(doc)
+    db.flush()
+    # un cont din afara planului ONG (ex. 721) nu e mapat: activul și pasivul nu se mai potrivesc
+    db.add(Account(organization_id=org.id, code="999", name="Cont nemapat", account_kind=acc["242"].account_kind))
+    db.flush()
+    nm = db.scalar(select(Account).where(Account.organization_id == org.id, Account.code == "999"))
+    post_document(db, organization_id=org.id, document_id=doc.id, user_id=user.id,
+                  lines=[LineInput(debit_account_id=acc["242"].id, credit_account_id=nm.id, amount=Decimal(100))])  # fmt: skip
+    db.flush()
+    body = client.get(f"/organizations/{org.id}/reports/rsf2/preview?year=2025", headers=auth_headers(user)).json()
+    assert body["balanced"] is False
+    assert any(not c["ok"] and "activ = pasiv" in c["message"] for c in body["checks"])
