@@ -8,6 +8,7 @@ from app.catalogs.models import Account, AccountAnalytics, Counterparty, Departm
 from app.documents.models import Document, Invoice, InvoiceLine, PaymentOrder, PaymentOrderLine
 from app.features.models import CoaTemplate, Feature, OrganizationFeature, OrganizationTaxRegime
 from app.treasury.models import TreasuryDoc, TreasuryDocLine  # noqa: F401
+from app.sales.models import SalesInvoice, SalesInvoiceLine, SalesSettlement  # noqa: F401
 from app.fix6.models import DocumentSource, FixedAssetEvent, PayrollCalcType, PeriodAdjustment, ScannedFile
 from app.fixed_assets.models import FixedAsset
 from app.grants.models import Allocation, BudgetLine, BudgetVersion, CostItem, Donor, Grant, GrantDonor, GrantTranche

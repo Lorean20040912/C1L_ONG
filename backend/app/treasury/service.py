@@ -54,6 +54,8 @@ OPS: dict[str, dict[str, OpDef]] = {
         "supplier_refund": OpDef("Restituire de la furnizor", ("bank_receipt", "supplier_refund"), "D",
                                  needs=("bank", "counterparty"), analytics=("K", "counterparty")),
         "cash_deposit": OpDef("Depunere numerar în cont", ("bank_receipt", "cash_deposit"), "D", needs=("bank",)),
+        "customer": OpDef("Încasare de la client", ("bank_receipt", "customer_payment"), "D",
+                          needs=("bank", "counterparty"), analytics=("K", "counterparty")),
         "other": OpDef("Alt cont (se alege contul creditor)", None, "D", needs=("bank", "account"), explicit="K",
                        optional=("counterparty", "grant")),
     },
@@ -74,6 +76,8 @@ OPS: dict[str, dict[str, OpDef]] = {
     "cash_receipt": {
         "from_bank": OpDef("Ridicare numerar din cont", ("bank_payment", "cash_withdrawal"), "K", needs=("bank",)),
         "membership": OpDef("Cotizații de membru", ("membership_fee", "receipt"), cash="D"),
+        "customer": OpDef("Încasare de la client", ("bank_receipt", "customer_payment"), cash="D",
+                          needs=("counterparty",), analytics=("K", "counterparty")),
         "advance_return": OpDef("Restituire avans de la persoană", None, cash="D", needs=("person", "account"),
                                 analytics=("K", "person"), explicit="K"),
         "other": OpDef("Alt cont (se alege contul creditor)", None, cash="D", needs=("account",), explicit="K",

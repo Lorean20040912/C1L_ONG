@@ -1,4 +1,5 @@
-"""Registrul (jurnalul) TVA și decontul pe perioadă, calculate din facturile primite.
+"""Registrul (jurnalul) TVA și decontul pe perioadă: achizițiile (facturi primite, TVA dedusă) și vânzările
+(facturi emise, TVA colectată din `app/sales`); decontul net = colectată − dedusă.
 
 Baza impozabilă e suma rândului facturii (fără TVA), cota — `vat_rate`; TVA = bază × cotă.
 Facturile marcate pentru ștergere nu intră. Cota lipsă se tratează ca 0% (fără TVA).
@@ -19,6 +20,7 @@ from app.catalogs.models import Counterparty
 from app.core.db import get_db
 from app.documents.models import Document, Invoice, InvoiceLine
 from app.regulated.export import table_xlsx
+from app.sales.reports import SalesVatRow, sales_vat_rows
 from app.workspaces.models import Organization
 
 router = APIRouter(prefix="/organizations/{organization_id}/reports", tags=["TVA"])
@@ -62,6 +64,14 @@ class VatReport(BaseModel):
     base_total: Decimal
     vat_total: Decimal
     posted_vat_total: Decimal
+    # vânzările: TVA colectată și decontul net (colectată − dedusă; pozitiv = de plătit la buget)
+    sales_rows: list[SalesVatRow] = []
+    sales_by_rate: list[VatRateTotal] = []
+    sales_base_total: Decimal = Decimal(0)
+    collected_vat_total: Decimal = Decimal(0)
+    deductible_vat_total: Decimal = Decimal(0)
+    net_vat: Decimal = Decimal(0)
+    posted_net_vat: Decimal = Decimal(0)
 
 
 def _vat(base: Decimal, rate: Decimal) -> Decimal:
@@ -114,7 +124,21 @@ def build_report(db: Session, ctx: OrgContext, date_from: date, date_to: date, r
         m = by_month.setdefault(row.entry_date.replace(day=1), VatMonthTotal(month=row.entry_date.replace(day=1), base=Decimal(0), vat=Decimal(0)))  # fmt: skip
         m.base += row.base
         m.vat += row.vat
+    sales = sales_vat_rows(db, ctx.organization_id, date_from, date_to, rate)
+    sales_rate: dict[Decimal, VatRateTotal] = {}
+    for sr in sales:
+        t = sales_rate.setdefault(sr.rate, VatRateTotal(rate=sr.rate, base=Decimal(0), vat=Decimal(0), documents=0))
+        t.base += sr.base
+        t.vat += sr.vat
+        t.documents += 1
+    collected = sum((r.vat for r in sales), Decimal(0))
+    deductible = sum((r.vat for r in rows), Decimal(0))
+    posted_collected = sum((r.vat for r in sales if r.is_posted), Decimal(0))
     return VatReport(
+        sales_rows=sales, sales_by_rate=sorted(sales_rate.values(), key=lambda t: t.rate),
+        sales_base_total=sum((r.base for r in sales), Decimal(0)), collected_vat_total=collected,
+        deductible_vat_total=deductible, net_vat=collected - deductible,
+        posted_net_vat=posted_collected - sum((r.vat for r in rows if r.is_posted), Decimal(0)),
         date_from=date_from, date_to=date_to, vat_payer=bool(org and org.vat_payer_from), rows=rows,
         by_rate=sorted(by_rate.values(), key=lambda t: t.rate), by_month=sorted(by_month.values(), key=lambda t: t.month),
         base_total=sum((r.base for r in rows), Decimal(0)), vat_total=sum((r.vat for r in rows), Decimal(0)),
@@ -152,8 +176,15 @@ def vat_xlsx(
     rows.append([])
     rows.append(["Decont pe cote", "", "", "", "", "Cota %", "Baza", "TVA", "Documente"])
     rows += [["", "", "", "", "", float(t.rate), float(t.base), float(t.vat), t.documents] for t in rep.by_rate]
+    rows.append([])
+    rows.append(["Jurnalul vânzărilor", "", "", "", "", "Cota %", "Baza", "TVA colectată", "Total"])
+    rows += [[f"{r.entry_date:%d.%m.%Y}", r.doc_number, r.counterparty or "", r.counterparty_idno or "",
+              r.vat_code or "", float(r.rate), float(r.base), float(r.vat), float(r.total)] for r in rep.sales_rows]  # fmt: skip
+    rows.append(["", "", "Decont net", "", "", "", "TVA colectată", float(rep.collected_vat_total), ""])
+    rows.append(["", "", "", "", "", "", "TVA dedusă", float(rep.deductible_vat_total), ""])
+    rows.append(["", "", "", "", "", "", "De plătit (+) / de recuperat (−)", float(rep.net_vat), ""])
     content = table_xlsx(
-        "Jurnalul TVA", f"Achiziții, {date_from:%d.%m.%Y} – {date_to:%d.%m.%Y}",
+        "Jurnalul TVA", f"Achiziții și vânzări, {date_from:%d.%m.%Y} – {date_to:%d.%m.%Y}",
         ["Data", "Document", "Furnizor", "IDNO", "Cod TVA", "Cota %", "Baza", "TVA", "Total"], rows,
         [12, 16, 36, 16, 14, 9, 14, 14, 14],
     )  # fmt: skip

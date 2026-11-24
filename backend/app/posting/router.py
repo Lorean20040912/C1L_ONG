@@ -175,6 +175,11 @@ def _refuse_dedicated(db: Session, doc: Document, action: str) -> None:
 
         if db.scalar(select(TreasuryDoc.id).where(TreasuryDoc.document_id == doc.id)) is not None:
             route = "treasury/docs"
+        else:
+            from app.sales.models import SalesInvoice  # facturile emise (vânzări)
+
+            if db.scalar(select(SalesInvoice.id).where(SalesInvoice.document_id == doc.id)) is not None:
+                route = "sales/invoices"
     if route:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Documentul se înregistrează prin /{route}/{doc.id}/{action}")
 
