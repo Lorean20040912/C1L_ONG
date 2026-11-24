@@ -85,6 +85,12 @@ export interface SupplierDebtRow {
   age_31_60: string;
   age_61_90: string;
   age_over_90: string;
+  invoices_total: string;
+  invoices_paid: string;
+  invoices_remaining: string;
+  count_unpaid: number;
+  count_partial: number;
+  count_paid: number;
 }
 
 export interface SupplierDebts {
@@ -105,7 +111,14 @@ export interface DebtMove {
   debit: string;
   credit: string;
   description: string | null;
+  invoice_paid: string | null;
+  invoice_remaining: string | null;
+  payment_status: PaymentState | null;
+  allocated: string | null;
 }
+
+export type PaymentState = "unpaid" | "partial" | "paid";
+export const PAYMENT_STATE_LABELS: Record<PaymentState, string> = { unpaid: "neachitată", partial: "parțial", paid: "achitată" };
 
 export interface InvoiceJournalRow {
   document_id: string;
@@ -121,6 +134,9 @@ export interface InvoiceJournalRow {
   net: string;
   vat: string;
   is_posted: boolean;
+  paid: string;
+  remaining: string;
+  payment_status: PaymentState;
 }
 
 export interface InvoiceJournal {
@@ -128,5 +144,58 @@ export interface InvoiceJournal {
   total: string;
   net: string;
   vat: string;
+  paid: string;
+  remaining: string;
   by_rate: { vat_rate: string; base: string; vat: string }[];
+}
+
+export interface SettleItem {
+  invoice_document_id: string;
+  amount: string;
+}
+
+export interface OpenInvoice {
+  document_id: string;
+  doc_number: string | null;
+  series: string | null;
+  doc_date: string | null;
+  total: string;
+  paid: string;
+  remaining: string;
+  payment_status: PaymentState;
+  is_posted: boolean;
+}
+
+export interface SupplierPayment {
+  payment_document_id: string;
+  doc_number: string | null;
+  doc_date: string | null;
+  amount: string;
+  allocated: string;
+  free: string;
+  is_posted: boolean;
+}
+
+export interface PaymentSettlements {
+  payment_document_id: string;
+  doc_number: string | null;
+  doc_date: string | null;
+  counterparty_id: string | null;
+  counterparty_name: string | null;
+  amount: string;
+  allocated: string;
+  free: string;
+  is_posted: boolean;
+  items: SettleItem[];
+  open_invoices: OpenInvoice[];
+}
+
+export interface InvoiceSettlements {
+  document_id: string;
+  doc_number: string | null;
+  total: string;
+  paid: string;
+  remaining: string;
+  payment_status: PaymentState;
+  payments: { payment_document_id: string; doc_number: string | null; doc_date: string | null; is_posted: boolean; amount: string }[];
 }

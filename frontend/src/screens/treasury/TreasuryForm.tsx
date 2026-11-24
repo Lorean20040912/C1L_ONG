@@ -10,6 +10,7 @@ import { printDocument } from "../../lib/printDoc";
 import { POSTING_ROLES, can, useShell } from "../../shell/tabs";
 import { BudgetLineSelect } from "../BudgetLineSelect";
 import { CounterpartyField } from "../CounterpartyField";
+import { SettlementsPanel } from "./SettlementsPanel";
 import { KIND_TITLES } from "./TreasuryList";
 
 const LINE_KINDS: Record<string, string> = { service: "Serviciu", material: "Material", goods: "Marfă", low_value_item: "OMVSD" };
@@ -468,6 +469,9 @@ export function TreasuryForm({ tabId, kind, documentId: initialId }: { tabId: st
             </div>
           )}
         </>
+      )}
+      {documentId && !dirty && operation === "supplier" && counterpartyId && (kind === "bank_payment" || kind === "cash_payment") && (
+        <SettlementsPanel key={`${documentId}:${posted}`} orgId={orgId} paymentId={documentId} editable={editable} />
       )}
       <p className="footer-note">
         <span className="kbd">Ctrl+Enter</span> înregistrează și închide · <span className="kbd">Ctrl+S</span> salvează

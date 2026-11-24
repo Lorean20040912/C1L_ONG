@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
-import type { DebtMove, SupplierDebts as Report, SupplierDebtRow } from "../../api/treasury";
+import { PAYMENT_STATE_LABELS, type DebtMove, type SupplierDebts as Report, type SupplierDebtRow } from "../../api/treasury";
 import { useCatalogs } from "../../catalog/useCatalogs";
 import { day, money, today } from "../../lib/format";
 import { useShell } from "../../shell/tabs";
@@ -45,8 +45,8 @@ export function SupplierDebts() {
   };
   const rows = (report?.rows ?? []).filter((r) => !onlyOpen || Number(r.closing) !== 0);
   const exportCsv = () => {
-    const head = ["Furnizor", "IDNO", "Sold inițial", "Debit", "Credit", "Sold final", "0-30 zile", "31-60", "61-90", ">90"];
-    const lines = [head, ...rows.map((r) => [r.name, r.idno ?? "", r.opening, r.debit, r.credit, r.closing, r.age_0_30, r.age_31_60, r.age_61_90, r.age_over_90])];
+    const head = ["Furnizor", "IDNO", "Sold inițial", "Debit", "Credit", "Sold final", "0-30 zile", "31-60", "61-90", ">90", "Facturi achitate", "Facturi parțial", "Facturi neachitate", "Rest pe facturi"];
+    const lines = [head, ...rows.map((r) => [r.name, r.idno ?? "", r.opening, r.debit, r.credit, r.closing, r.age_0_30, r.age_31_60, r.age_61_90, r.age_over_90, String(r.count_paid), String(r.count_partial), String(r.count_unpaid), r.invoices_remaining])];
     const blob = new Blob(["﻿" + lines.map((l) => l.map(csvCell).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -99,6 +99,8 @@ export function SupplierDebts() {
               <th className="num">31–60</th>
               <th className="num">61–90</th>
               <th className="num">&gt;90</th>
+              <th title="Facturi primite: achitate / parțial / neachitate (după plățile legate de facturi)">Facturi (achit. / parț. / neach.)</th>
+              <th className="num">Rest pe facturi</th>
             </tr>
           </thead>
           <tbody>
@@ -116,11 +118,15 @@ export function SupplierDebts() {
                 <td className="num">{money(r.age_31_60)}</td>
                 <td className="num">{money(r.age_61_90)}</td>
                 <td className="num">{money(r.age_over_90)}</td>
+                <td>
+                  {r.count_paid} / {r.count_partial} / <span className={r.count_unpaid ? "late" : ""}>{r.count_unpaid}</span>
+                </td>
+                <td className="num">{money(r.invoices_remaining)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="muted">
+                <td colSpan={12} className="muted">
                   Nu sunt datorii față de furnizori în perioada aleasă.
                 </td>
               </tr>
@@ -138,13 +144,16 @@ export function SupplierDebts() {
                 <td className="num">
                   <b>{money(report.total_closing)}</b>
                 </td>
-                <td colSpan={4} />
+                <td colSpan={6} />
               </tr>
             </tfoot>
           )}
         </table>
       )}
-      <p className="footer-note">Sold creditor = datorie față de furnizor. Vechimea se calculează cronologic: plățile sting cele mai vechi facturi. Clic pe un furnizor arată documentele.</p>
+      <p className="footer-note">
+        Sold creditor = datorie față de furnizor. Vechimea se calculează cronologic: plățile sting cele mai vechi facturi. Starea facturilor (achitată / parțial) vine din plățile legate de facturi în „Facturi fiscale primite” sau în
+        documentul de plată. Clic pe un furnizor arată documentele.
+      </p>
       {open && (
         <>
           <h2>Mișcări: {open.name}</h2>
@@ -156,6 +165,8 @@ export function SupplierDebts() {
                 <th>Conținut</th>
                 <th className="num">Debit (plăți)</th>
                 <th className="num">Credit (facturi)</th>
+                <th>Starea facturii</th>
+                <th className="num">Achitat / rest</th>
               </tr>
             </thead>
             <tbody>
@@ -166,11 +177,15 @@ export function SupplierDebts() {
                   <td>{m.description}</td>
                   <td className="num">{Number(m.debit) ? money(m.debit) : ""}</td>
                   <td className="num">{Number(m.credit) ? money(m.credit) : ""}</td>
+                  <td className={m.payment_status === "unpaid" ? "late" : ""}>{m.payment_status ? PAYMENT_STATE_LABELS[m.payment_status] : ""}</td>
+                  <td className="num">
+                    {m.payment_status ? `${money(m.invoice_paid)} / ${money(m.invoice_remaining)}` : m.allocated !== null ? `legat de facturi: ${money(m.allocated)}` : ""}
+                  </td>
                 </tr>
               ))}
               {moves.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted">
+                  <td colSpan={7} className="muted">
                     Nu sunt mișcări în perioadă.
                   </td>
                 </tr>
