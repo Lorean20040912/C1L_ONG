@@ -7,7 +7,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import OrgContext, get_org_context
@@ -16,6 +16,9 @@ from app.core.db import get_db
 from app.core.enums import SubcontoType
 from app.documents.models import Document, Invoice
 from app.posting.models import EntryLine, EntryLineAnalytics
+from app.treasury.models import InvoiceSettlement
+from app.treasury.settlements import paid_by_invoice, payment_status
+from app.treasury.settlements import payment_status as payment_status_of
 
 router = APIRouter(prefix="/organizations/{organization_id}/treasury/reports", tags=["rapoarte achiziții"])
 CENT = Decimal("0.01")
@@ -29,6 +32,12 @@ class SupplierDebtRow(BaseModel):
     debit: Decimal
     credit: Decimal
     closing: Decimal
+    invoices_total: Decimal = Decimal(0)  # suma facturilor primite (în perioadă, până la data de sfârșit)
+    invoices_paid: Decimal = Decimal(0)  # cât din ele e stins prin plăți legate
+    invoices_remaining: Decimal = Decimal(0)
+    count_unpaid: int = 0
+    count_partial: int = 0
+    count_paid: int = 0
     age_0_30: Decimal
     age_31_60: Decimal
     age_61_90: Decimal
@@ -105,12 +114,41 @@ def supplier_debts(
             counterparty_id=cp, name=c.name if c else "Fără furnizor indicat", idno=c.idno if c else None,
             opening=opening, debit=debit, credit=credit, closing=closing,
             age_0_30=buckets[0], age_31_60=buckets[1], age_61_90=buckets[2], age_over_90=buckets[3]))
+    _fill_settlements(db, ctx.organization_id, date_to, rows)
     rows = [r for r in rows if any((r.opening, r.debit, r.credit, r.closing))]
     rows.sort(key=lambda r: r.name.lower())
     return SupplierDebts(
         date_from=date_from, date_to=date_to, rows=rows,
         total_opening=sum((r.opening for r in rows), Decimal(0)), total_debit=sum((r.debit for r in rows), Decimal(0)),
         total_credit=sum((r.credit for r in rows), Decimal(0)), total_closing=sum((r.closing for r in rows), Decimal(0)))
+
+
+def _fill_settlements(db: Session, org: uuid.UUID, date_to: date, rows: list[SupplierDebtRow]) -> None:
+    """Pe furnizor: facturile primite și cât din ele e achitat (stingeri), cu numărul facturilor neachitate / parțiale / achitate."""
+    ids = [r.counterparty_id for r in rows if r.counterparty_id]
+    if not ids:
+        return
+    invs = db.execute(
+        select(Document.id, Document.counterparty_id, Document.total_amount)
+        .join(Invoice, Invoice.document_id == Document.id)
+        .where(Document.organization_id == org, Document.counterparty_id.in_(ids), Document.deletion_mark.is_not(True),
+               Document.doc_date <= date_to)
+    ).all()
+    paid = paid_by_invoice(db, org, [i[0] for i in invs])
+    by_cp = {r.counterparty_id: r for r in rows}
+    for doc_id, cp, total in invs:
+        row, total = by_cp[cp], total or Decimal(0)
+        p = min(paid.get(doc_id, Decimal(0)), total)
+        row.invoices_total += total
+        row.invoices_paid += p
+        row.invoices_remaining += total - p
+        state = payment_status(total, p)
+        if state == "paid":
+            row.count_paid += 1
+        elif state == "partial":
+            row.count_partial += 1
+        else:
+            row.count_unpaid += 1
 
 
 class DebtMove(BaseModel):
@@ -121,6 +159,10 @@ class DebtMove(BaseModel):
     debit: Decimal
     credit: Decimal
     description: str | None
+    invoice_paid: Decimal | None = None  # doar la facturi
+    invoice_remaining: Decimal | None = None
+    payment_status: str | None = None  # unpaid / partial / paid
+    allocated: Decimal | None = None  # doar la plăți: cât din ele stinge facturi
 
 
 @router.get("/supplier-debts/moves", response_model=list[DebtMove])
@@ -136,12 +178,24 @@ def supplier_debt_moves(
     moves = [m for m in _lines(db, ctx.organization_id, account_prefix, date_to, None) if m[0] >= date_from]
     moves = [m for m in moves if m[3] == counterparty_id]
     docs = {d.id: d for d in db.scalars(select(Document).where(Document.id.in_({m[1] for m in moves})))}
-    return [
-        DebtMove(entry_date=d, document_id=doc_id, doc_number=docs[doc_id].doc_number if doc_id in docs else None,
-                 doc_type=docs[doc_id].type.value if doc_id in docs and docs[doc_id].type else None,
-                 debit=-s if s < 0 else Decimal(0), credit=s if s > 0 else Decimal(0), description=desc)
-        for d, doc_id, s, _cp, desc in sorted(moves, key=lambda m: (m[0], str(m[1])))
-    ]
+    inv_ids = set(db.scalars(select(Invoice.document_id).where(Invoice.document_id.in_({m[1] for m in moves}))))
+    paid = paid_by_invoice(db, ctx.organization_id, inv_ids)
+    alloc = dict(db.execute(
+        select(InvoiceSettlement.payment_document_id, func.sum(InvoiceSettlement.amount))
+        .where(InvoiceSettlement.payment_document_id.in_({m[1] for m in moves}))
+        .group_by(InvoiceSettlement.payment_document_id)).all())
+    out = []
+    for d, doc_id, s, _cp, desc in sorted(moves, key=lambda m: (m[0], str(m[1]))):
+        move = DebtMove(entry_date=d, document_id=doc_id, doc_number=docs[doc_id].doc_number if doc_id in docs else None,
+                        doc_type=docs[doc_id].type.value if doc_id in docs and docs[doc_id].type else None,
+                        debit=-s if s < 0 else Decimal(0), credit=s if s > 0 else Decimal(0), description=desc)
+        if doc_id in inv_ids and s > 0:
+            total, p = docs[doc_id].total_amount or s, paid.get(doc_id, Decimal(0))
+            move.invoice_paid, move.invoice_remaining, move.payment_status = p, max(total - p, Decimal(0)), payment_status(total, p)
+        elif s < 0:
+            move.allocated = alloc.get(doc_id, Decimal(0))
+        out.append(move)
+    return out
 
 
 class InvoiceJournalRow(BaseModel):
@@ -158,6 +212,9 @@ class InvoiceJournalRow(BaseModel):
     net: Decimal
     vat: Decimal
     is_posted: bool
+    paid: Decimal = Decimal(0)
+    remaining: Decimal = Decimal(0)
+    payment_status: str = "unpaid"  # unpaid / partial / paid
 
 
 class VatRateTotal(BaseModel):
@@ -171,6 +228,8 @@ class InvoiceJournal(BaseModel):
     total: Decimal
     net: Decimal
     vat: Decimal
+    paid: Decimal = Decimal(0)
+    remaining: Decimal = Decimal(0)
     by_rate: list[VatRateTotal]
 
 
@@ -181,6 +240,7 @@ def received_invoices(
     counterparty_id: uuid.UUID | None = None,
     posted: bool | None = None,
     q: str | None = None,
+    payment_status: str | None = None,
     ctx: OrgContext = Depends(get_org_context),
     db: Session = Depends(get_db),
 ) -> InvoiceJournal:
@@ -199,10 +259,19 @@ def received_invoices(
         query = query.where(Document.counterparty_id == counterparty_id)
     if posted is not None:
         query = query.where(Document.is_posted.is_(True) if posted else Document.is_posted.is_not(True))
+    if payment_status and payment_status not in ("unpaid", "partial", "paid"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Starea plății poate fi: neachitată, parțială sau achitată")
     rows: list[InvoiceJournalRow] = []
     by_rate: dict[Decimal, list[Decimal]] = defaultdict(lambda: [Decimal(0), Decimal(0)])
     needle = (q or "").strip().lower()
-    for doc, invoice, cp in db.execute(query.order_by(Document.doc_date, Document.doc_number)).all():
+    found = db.execute(query.order_by(Document.doc_date, Document.doc_number)).all()
+    paid_map = paid_by_invoice(db, ctx.organization_id, [d.id for d, _i, _c in found])
+    for doc, invoice, cp in found:
+        total = doc.total_amount or Decimal(0)
+        paid = min(paid_map.get(doc.id, Decimal(0)), total)
+        state = payment_status_of(total, paid)
+        if payment_status and state != payment_status:
+            continue
         if needle and needle not in " ".join(filter(None, [doc.doc_number, invoice.series, cp.name if cp else None])).lower():
             continue
         vat = Decimal(0)
@@ -212,13 +281,13 @@ def received_invoices(
             vat += line_vat
             by_rate[rate][0] += ln.amount - line_vat
             by_rate[rate][1] += line_vat
-        total = doc.total_amount or Decimal(0)
         rows.append(InvoiceJournalRow(
             document_id=doc.id, doc_date=doc.doc_date, series=invoice.series, doc_number=doc.doc_number,
             counterparty_id=doc.counterparty_id, counterparty_name=cp.name if cp else None, idno=cp.idno if cp else None,
             vat_code=cp.vat_code if cp else None, e_invoice_id=invoice.e_invoice_id, total=total, net=total - vat,
-            vat=vat, is_posted=bool(doc.is_posted)))
+            vat=vat, is_posted=bool(doc.is_posted), paid=paid, remaining=total - paid, payment_status=state))
     return InvoiceJournal(
         rows=rows, total=sum((r.total for r in rows), Decimal(0)), net=sum((r.net for r in rows), Decimal(0)),
-        vat=sum((r.vat for r in rows), Decimal(0)),
+        vat=sum((r.vat for r in rows), Decimal(0)), paid=sum((r.paid for r in rows), Decimal(0)),
+        remaining=sum((r.remaining for r in rows), Decimal(0)),
         by_rate=[VatRateTotal(vat_rate=r, base=v[0], vat=v[1]) for r, v in sorted(by_rate.items())])

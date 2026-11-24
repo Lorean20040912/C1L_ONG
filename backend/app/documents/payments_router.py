@@ -15,6 +15,7 @@ from app.bank.models import BankAccount
 from app.catalogs.models import Counterparty
 from app.core.db import get_db
 from app.core.enums import DocumentType, PaymentDirection
+from app.treasury.settlements import sync_order_settlement
 from app.documents.models import Document, Invoice, PaymentOrder, PaymentOrderLine
 from app.documents.posting import post_payment, preview_payment
 from app.grants.models import Grant
@@ -178,6 +179,7 @@ def create_payment(
     order.document_id = doc.id
     db.add(order)
     db.flush()
+    sync_order_settlement(db, ctx.organization_id, doc, order, ctx.user.id)
     write_audit(
         db,
         action="create",
@@ -218,6 +220,7 @@ def update_payment(
     _apply(db, ctx, doc, order, body)
     doc.version = (doc.version or 1) + 1
     db.flush()
+    sync_order_settlement(db, ctx.organization_id, doc, order, ctx.user.id)
     write_audit(
         db,
         action="update",

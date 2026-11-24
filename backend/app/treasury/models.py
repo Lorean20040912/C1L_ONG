@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Index, ForeignKey, Integer, Numeric, String, text
+from sqlalchemy import DateTime, Index, ForeignKey, Integer, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -52,3 +52,22 @@ class TreasuryDocLine(Base):
     cost_item_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cost_items.id"))
 
     doc: Mapped[TreasuryDoc] = relationship(back_populates="lines")
+
+
+class InvoiceSettlement(Base):
+    """Stingerea unei facturi primite cu (o parte din) o plată către furnizor: plata → factura, cu suma."""
+
+    __tablename__ = "invoice_settlements"
+    __table_args__ = (
+        UniqueConstraint("invoice_document_id", "payment_document_id"),
+        Index("ix_invoice_settlements_payment", "payment_document_id"),
+        Index("ix_invoice_settlements_invoice", "invoice_document_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"))
+    invoice_document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"))
+    payment_document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"))
+    amount: Mapped[Decimal] = mapped_column(Numeric(15, 2))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=text("now()"))
