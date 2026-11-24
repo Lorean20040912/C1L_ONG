@@ -62,6 +62,15 @@ export type TabKind =
   | "doc-sources"
   | "bank-profiles"
   | "scans"
+  | "bank-receipts"
+  | "bank-payments"
+  | "cash-receipts"
+  | "cash-payments"
+  | "advance-reports"
+  | "service-acts"
+  | "received-invoices"
+  | "supplier-debts"
+  | "treasury-doc"
   | "vat"
   | "general-ledger"
   | "accounting-check";
@@ -159,6 +168,14 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Surse de documente (Drive / folder)": "doc-sources",
   "Profiluri bănci": "bank-profiles",
   "Documente scanate (AI)": "scans",
+  "Încasări pe cont": "bank-receipts",
+  "Plăți din cont": "bank-payments",
+  "Încasări numerar": "cash-receipts",
+  "Plăți numerar": "cash-payments",
+  "Decont de avans": "advance-reports",
+  "Servicii primite (acte)": "service-acts",
+  "Facturi fiscale primite": "received-invoices",
+  "Datorii față de furnizori": "supplier-debts",
   TVA: "vat",
   "Cartea mare": "general-ledger",
   "Verificarea contabilității": "accounting-check",

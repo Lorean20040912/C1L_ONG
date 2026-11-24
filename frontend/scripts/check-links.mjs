@@ -18,27 +18,15 @@ for (const m of body.slice(0, body.indexOf("};")).matchAll(/^\s+(?:"([^"]+)"|([^
 const cases = new Set([...shell.matchAll(/case "([\w-]+)":/g)].map((m) => m[1]));
 const kinds = new Set([...tabs.slice(0, tabs.indexOf("export interface Tab")).matchAll(/\| "([\w-]+)"/g)].map((m) => m[1]));
 
-// legăturile încă în lucru în sesiunea paralelă (încasări/plăți, decont de avans, servicii și facturi primite,
-// datorii față de furnizori); se șterg de aici când își primesc ecranul
-const PENDING_OTHER_SESSION = new Set([
-  "Încasări pe cont", "Plăți din cont", "Încasări numerar", "Plăți numerar", "Decont de avans",
-  "Servicii primite (acte)", "Facturi fiscale primite", "Datorii față de furnizori",
-]);
 
 const problems = [];
-const pending = [];
 for (const t of links) {
   const kind = map[t];
-  if (!kind && PENDING_OTHER_SESSION.has(t)) {
-    pending.push(t);
-    continue;
-  }
   if (!kind) problems.push(`„${t}”: fără intrare în SCREEN_LINKS (placeholder „în lucru”)`);
   else if (kind === "placeholder" || !kinds.has(kind)) problems.push(`„${t}”: tip necunoscut „${kind}”`);
   else if (!cases.has(kind) && kind !== "manual") problems.push(`„${t}”: AppShell nu are ecran pentru „${kind}”`);
 }
 const total = links.length;
-console.log(`${total} legături în meniu, ${total - problems.length - pending.length} deschid ecrane reale, ${pending.length} în lucru în altă sesiune.`);
-for (const t of pending) console.log(" …", t);
+console.log(`${total} legături în meniu, ${total - problems.length} deschid ecrane reale.`);
 for (const p of problems) console.error(" ✖", p);
 process.exit(problems.length ? 1 : 0);

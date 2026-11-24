@@ -61,6 +61,11 @@ import { ScannedDocuments } from "../screens/fix6/ScannedDocuments";
 import { VatScreen } from "../screens/fix8/VatScreen";
 import { GeneralLedger } from "../screens/fix8/GeneralLedger";
 import { AccountingCheck } from "../screens/fix8/AccountingCheck";
+import { TreasuryList } from "../screens/treasury/TreasuryList";
+import { TreasuryForm } from "../screens/treasury/TreasuryForm";
+import { SupplierDebts } from "../screens/treasury/SupplierDebts";
+import { ReceivedInvoices } from "../screens/treasury/ReceivedInvoices";
+import type { TreasuryKind } from "../api/treasury";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { ProfileContext, useProfileLoader } from "./profile";
@@ -364,6 +369,24 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <GeneralLedger />;
     case "accounting-check":
       return <AccountingCheck />;
+    case "bank-receipts":
+      return <TreasuryList kind="bank_receipt" />;
+    case "bank-payments":
+      return <TreasuryList kind="bank_payment" />;
+    case "cash-receipts":
+      return <TreasuryList kind="cash_receipt" />;
+    case "cash-payments":
+      return <TreasuryList kind="cash_payment" />;
+    case "advance-reports":
+      return <TreasuryList kind="advance_report" />;
+    case "service-acts":
+      return <TreasuryList kind="service_act" />;
+    case "treasury-doc":
+      return <TreasuryForm tabId={tab.id} kind={p.kind as TreasuryKind} documentId={p.documentId} />;
+    case "received-invoices":
+      return <ReceivedInvoices />;
+    case "supplier-debts":
+      return <SupplierDebts />;
     case "dtkt":
       return <PostingView route={p.route} documentId={p.documentId} title={tab.title} />;
     default:
