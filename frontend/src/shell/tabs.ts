@@ -71,6 +71,9 @@ export type TabKind =
   | "received-invoices"
   | "supplier-debts"
   | "treasury-doc"
+  | "sales-invoices"
+  | "sales-invoice"
+  | "customer-balances"
   | "vat"
   | "general-ledger"
   | "accounting-check";
@@ -176,6 +179,8 @@ export const SCREEN_LINKS: Record<string, TabKind> = {
   "Servicii primite (acte)": "service-acts",
   "Facturi fiscale primite": "received-invoices",
   "Datorii față de furnizori": "supplier-debts",
+  "Facturi emise": "sales-invoices",
+  "Sold clienți": "customer-balances",
   TVA: "vat",
   "Cartea mare": "general-ledger",
   "Verificarea contabilității": "accounting-check",

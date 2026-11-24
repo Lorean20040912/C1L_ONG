@@ -66,6 +66,9 @@ import { TreasuryForm } from "../screens/treasury/TreasuryForm";
 import { SupplierDebts } from "../screens/treasury/SupplierDebts";
 import { ReceivedInvoices } from "../screens/treasury/ReceivedInvoices";
 import type { TreasuryKind } from "../api/treasury";
+import { SalesInvoiceList } from "../screens/sales/SalesInvoiceList";
+import { SalesInvoiceForm } from "../screens/sales/SalesInvoiceForm";
+import { CustomerBalances } from "../screens/sales/CustomerBalances";
 import { HomeScreen } from "./HomeScreen";
 import { PlaceholderScreen } from "./PlaceholderScreen";
 import { ProfileContext, useProfileLoader } from "./profile";
@@ -393,6 +396,12 @@ function Screen({ tab, org }: { tab: Tab; org: OrganizationBrief | undefined }) 
       return <TreasuryList kind="service_act" />;
     case "treasury-doc":
       return <TreasuryForm tabId={tab.id} kind={p.kind as TreasuryKind} documentId={p.documentId} />;
+    case "sales-invoices":
+      return <SalesInvoiceList />;
+    case "sales-invoice":
+      return <SalesInvoiceForm tabId={tab.id} documentId={p.documentId} />;
+    case "customer-balances":
+      return <CustomerBalances />;
     case "received-invoices":
       return <ReceivedInvoices />;
     case "supplier-debts":

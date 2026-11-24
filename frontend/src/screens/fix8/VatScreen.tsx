@@ -25,9 +25,16 @@ interface Report {
   base_total: string;
   vat_total: string;
   posted_vat_total: string;
+  sales_rows: (Row & { kind: string })[];
+  sales_by_rate: { rate: string; base: string; vat: string; documents: number }[];
+  sales_base_total: string;
+  collected_vat_total: string;
+  deductible_vat_total: string;
+  net_vat: string;
+  posted_net_vat: string;
 }
 
-/** Registrul (jurnalul) TVA al achizițiilor și decontul pe cote, din facturile primite. */
+/** Jurnalele TVA (achiziții și vânzări) și decontul: TVA colectată (facturi emise) − TVA dedusă (facturi primite). */
 export function VatScreen() {
   const { orgId, openTab } = useShell();
   const year = new Date().getFullYear();
@@ -50,7 +57,7 @@ export function VatScreen() {
 
   return (
     <>
-      <h1>TVA: jurnal și decont</h1>
+      <h1>TVA: jurnale și decont</h1>
       <div className="bar">
         <input className="b" type="date" aria-label="De la" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} />
         <span className="muted">—</span>
@@ -74,7 +81,29 @@ export function VatScreen() {
       {data && !data.vat_payer && <p className="muted">Organizația nu este înregistrată plătitoare de TVA (data se setează în „Date pentru rapoarte”); cifrele sunt orientative.</p>}
       {data && (
         <>
-          <h3>Decont pe cote</h3>
+          <h3>Decontul net al perioadei</h3>
+          <table className="grid">
+            <tbody>
+              <tr>
+                <td>TVA colectată (vânzări)</td>
+                <td className="num">{money(data.collected_vat_total)}</td>
+              </tr>
+              <tr>
+                <td>TVA dedusă (achiziții)</td>
+                <td className="num">{money(data.deductible_vat_total)}</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>{Number(data.net_vat) >= 0 ? "TVA de plătit la buget" : "TVA de recuperat / de reportat"}</b>
+                </td>
+                <td className="num">
+                  <b>{money(Math.abs(Number(data.net_vat)))}</b>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="muted">Din documente înregistrate: {money(data.posted_net_vat)} (colectată − dedusă).</p>
+          <h3>Decont pe cote — achiziții</h3>
           <table className="grid">
             <thead>
               <tr>
@@ -130,6 +159,64 @@ export function VatScreen() {
               </table>
             </>
           )}
+          <h3>Jurnalul vânzărilor (TVA colectată)</h3>
+          <table className="grid">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Document</th>
+                <th>Client</th>
+                <th>IDNO</th>
+                <th className="num">Cota %</th>
+                <th className="num">Baza (MDL)</th>
+                <th className="num">TVA (MDL)</th>
+                <th className="num">Total (MDL)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.sales_rows.map((r) => (
+                <tr key={`${r.document_id}:${r.rate}`}>
+                  <td>{day(r.entry_date)}</td>
+                  <td>
+                    <button className="link" onClick={() => openTab({ id: `sales:${r.document_id}`, title: `Factură emisă ${r.doc_number ?? ""}`, kind: "sales-invoice", params: { documentId: r.document_id } })}>
+                      {r.doc_number ?? "—"}
+                    </button>
+                    {r.kind === "credit_note" && <span className="muted"> · stornare</span>}
+                    {!r.is_posted && <span className="muted"> · neînregistrat</span>}
+                  </td>
+                  <td>{r.counterparty}</td>
+                  <td>{r.counterparty_idno}</td>
+                  <td className="num">{Number(r.rate)}</td>
+                  <td className="num">{money(r.base)}</td>
+                  <td className="num">{money(r.vat)}</td>
+                  <td className="num">{money(r.total)}</td>
+                </tr>
+              ))}
+              {data.sales_rows.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="muted">
+                    Nicio factură emisă în perioadă.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {data.sales_rows.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={5}>
+                    <b>Total vânzări</b>
+                  </td>
+                  <td className="num">
+                    <b>{money(data.sales_base_total)}</b>
+                  </td>
+                  <td className="num">
+                    <b>{money(data.collected_vat_total)}</b>
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
           <h3>Jurnalul TVA (achiziții)</h3>
           <table className="grid">
             <thead>

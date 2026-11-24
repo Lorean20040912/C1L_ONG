@@ -32,8 +32,8 @@ export const SECTIONS: Section[] = [
     icon: "⬆",
     title: "Vânzări",
     groups: {
-      Documente: ["Încasări pe cont", "Încasări numerar"],
-      Rapoarte: ["TVA", "Cartea mare"],
+      Documente: ["Facturi emise", "Încasări pe cont", "Încasări numerar"],
+      Rapoarte: ["Sold clienți", "TVA", "Cartea mare"],
     },
   },
   {
