@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.audit.service import write_audit
 from app.catalogs.models import Counterparty
 from app.core.enums import DocumentType
+from app.documents.duplicates import duplicate_invoice, duplicate_message
 from app.documents.models import Document, Invoice, InvoiceLine
 from app.efactura.models import EfacturaMessage
 from app.onec_import.service import ImportFormatError, parse_xml
@@ -153,6 +154,9 @@ def import_invoice(db: Session, *, organization_id: uuid.UUID, user_id: uuid.UUI
         cp = Counterparty(organization_id=organization_id, name=p.supplier_name, idno=p.supplier_idno, vat_code=p.supplier_vat)
         db.add(cp)
         db.flush()
+    dup = duplicate_invoice(db, organization_id=organization_id, counterparty_id=cp.id, doc_number=p.number, doc_date=p.issue_date)
+    if dup is not None:
+        raise EfacturaError(duplicate_message(db, dup, p.number, p.issue_date))
     doc = Document(organization_id=organization_id, type=DocumentType.invoice, doc_number=p.number, doc_date=p.issue_date,
                    counterparty_id=cp.id, total_amount=sum((ln.amount for ln in p.lines), Decimal(0)),
                    currency=p.currency, uploaded_by=user_id)  # fmt: skip

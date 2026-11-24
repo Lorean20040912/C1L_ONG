@@ -18,6 +18,7 @@ from app.auth.deps import POSTING_ROLES, OrgContext, get_org_context
 from app.catalogs.models import Counterparty
 from app.core.db import get_db
 from app.core.enums import DocumentStatus, DocumentType
+from app.documents.duplicates import PURCHASE_TYPES, duplicate_invoice, duplicate_message
 from app.documents.models import Document
 from app.fix6.models import DocumentSource, ScannedFile
 
@@ -217,10 +218,21 @@ def patch_scan(doc_id: uuid.UUID, body: ScanPatch, ctx: OrgContext = Depends(get
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Contrapartida nu aparține organizației")
     for k, v in changes.items():
         setattr(doc, k, v.upper() if k == "currency" and v else v)
+    _refuse_duplicate(db, doc)
     if doc.status in (DocumentStatus.new, DocumentStatus.rejected):
         doc.status = DocumentStatus.to_review
     db.commit()
     return _out(db, doc)
+
+
+def _refuse_duplicate(db: Session, doc: Document) -> None:
+    """Factura din scan cu același număr, furnizor și an ca una existentă se refuză (ca la introducerea manuală)."""
+    if doc.type not in PURCHASE_TYPES:
+        return
+    dup = duplicate_invoice(db, organization_id=doc.organization_id, counterparty_id=doc.counterparty_id,
+                            doc_number=doc.doc_number, doc_date=doc.doc_date, exclude_id=doc.id)  # fmt: skip
+    if dup is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, duplicate_message(db, dup, doc.doc_number or "", doc.doc_date))
 
 
 def _missing(doc: Document) -> list[str]:
@@ -245,6 +257,7 @@ def validate_scan(doc_id: uuid.UUID, ctx: OrgContext = Depends(get_org_context),
     miss = _missing(doc)
     if miss:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Completați înainte de validare: " + ", ".join(miss))
+    _refuse_duplicate(db, doc)
     doc.status = DocumentStatus.validated
     doc.validated_by = ctx.user.id
     doc.validated_at = datetime.now()

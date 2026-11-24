@@ -15,6 +15,7 @@ from app.auth.deps import POSTING_ROLES, OrgContext, get_org_context
 from app.catalogs.models import Account, Counterparty
 from app.core.db import get_db
 from app.core.enums import DocumentType, LineKind
+from app.documents.duplicates import duplicate_invoice, duplicate_message
 from app.documents.models import Document, Invoice, InvoiceLine
 from app.documents.posting import post_invoice, preview_invoice, unpost_invoice
 from app.grants.budget import check_amounts, check_document
@@ -121,11 +122,15 @@ def _owned(db: Session, model, org_id: uuid.UUID, ids: set, label: str) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"{label} nu aparține organizației")
 
 
-def _validate(db: Session, ctx: OrgContext, body: InvoiceIn) -> None:
+def _validate(db: Session, ctx: OrgContext, body: InvoiceIn, exclude_id: uuid.UUID | None = None) -> None:
     _owned(db, Counterparty, ctx.organization_id, {body.counterparty_id}, "Furnizorul")
     _owned(db, Account, ctx.organization_id, {ln.account_id for ln in body.lines}, "Contul")
     _owned(db, BudgetLine, ctx.organization_id, {ln.budget_line_id for ln in body.lines}, "Linia de buget")
     _owned(db, CostItem, ctx.organization_id, {ln.cost_item_id for ln in body.lines}, "Articolul de cheltuieli")
+    dup = duplicate_invoice(db, organization_id=ctx.organization_id, counterparty_id=body.counterparty_id,
+                            doc_number=body.doc_number, doc_date=body.doc_date, series=body.series, exclude_id=exclude_id)  # fmt: skip
+    if dup is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, duplicate_message(db, dup, body.doc_number, body.doc_date))
 
 
 def _set_lines(invoice: Invoice, body: InvoiceIn) -> None:
@@ -222,7 +227,7 @@ def update_invoice(
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Factura este înregistrată; anulați înregistrarea ca să o modificați"
         )
-    _validate(db, ctx, body)
+    _validate(db, ctx, body, exclude_id=doc.id)
     doc.doc_number = body.doc_number
     doc.doc_date = body.doc_date
     doc.counterparty_id = body.counterparty_id
