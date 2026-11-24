@@ -284,7 +284,8 @@ def list_docs(
         .join(TreasuryDoc, TreasuryDoc.document_id == Document.id)
         .outerjoin(Counterparty, Counterparty.id == Document.counterparty_id)
         .outerjoin(Person, Person.id == TreasuryDoc.person_id)
-        .where(Document.organization_id == ctx.organization_id, TreasuryDoc.kind == kind)
+        .where(Document.organization_id == ctx.organization_id, TreasuryDoc.kind == kind,
+               Document.deletion_mark.is_not(True))
     )
     if date_from:
         query = query.where(Document.doc_date >= date_from)
